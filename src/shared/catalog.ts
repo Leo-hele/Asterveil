@@ -28,6 +28,12 @@ export const moduleCatalog = [
     description: '',
     defaultEnabled: true,
   },
+  {
+    id: 'real-names',
+    title: '真实姓名',
+    description: '把用户名链接显示为真名，并标注毕业信息。',
+    defaultEnabled: true,
+  },
 ] as const;
 
 export type ModuleId = (typeof moduleCatalog)[number]['id'];

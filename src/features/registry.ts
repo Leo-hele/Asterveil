@@ -19,4 +19,9 @@ export const modules = [
     matches: () => true,
     load: () => import('./local-avatars').then((module) => module.default),
   },
+  {
+    id: 'real-names',
+    matches: () => true,
+    load: () => import('./real-names').then((module) => module.default),
+  },
 ] satisfies readonly ModuleDefinition[];
