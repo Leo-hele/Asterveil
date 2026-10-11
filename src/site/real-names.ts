@@ -13,6 +13,7 @@ type Change = {
   readonly texts: readonly TextChange[];
   readonly replacement: string;
   readonly moves: readonly MoveChange[];
+  readonly added: Text | null;
   readonly title?: TitleChange;
 };
 
@@ -35,6 +36,16 @@ function textNodesOf(anchor: HTMLAnchorElement): readonly Text[] {
     nested.push(node as Text);
   }
   return nested.filter((node) => node.data.trim());
+}
+
+// Avatar-only profile links carry no text, so the real name needs a carrier node.
+function carrierOf(anchor: HTMLAnchorElement): { readonly node: Text; readonly created: boolean } {
+  for (const node of Array.from(anchor.childNodes)) {
+    if (node.nodeType === Node.TEXT_NODE) return { node: node as Text, created: false };
+  }
+  const node = document.createTextNode('');
+  anchor.append(node);
+  return { node, created: true };
 }
 
 function follows(reference: Node, node: Node): boolean {
@@ -71,15 +82,17 @@ export function replaceUserNames(scope: Scope): void {
       return;
     }
     const texts = textNodesOf(anchor);
-    const [first, ...rest] = texts;
-    if (!first) return;
     const current = texts.map((node) => node.data).join('').trim();
-    if (!current || current === entry.name) return;
+    if (current === entry.name) return;
     checked.add(anchor);
-    const changes = texts.map((node) => ({ node, original: node.data }));
-    first.data = entry.name;
-    for (const node of rest) node.data = '';
-    const move = moveAvatarBefore(anchor, first);
+    // Links without any text (avatar-only profile links) still get the real name.
+    const existing = texts[0];
+    const carrier = existing ? { node: existing, created: false } : carrierOf(anchor);
+    const name = carrier.node;
+    const changes = (existing ? texts : [name]).map((node) => ({ node, original: node.data }));
+    name.data = entry.name;
+    for (const node of texts) if (node !== name) node.data = '';
+    const move = moveAvatarBefore(anchor, name);
     const label = graduationLabel(entry.title);
     let title: TitleChange | undefined;
     if (label) {
@@ -92,6 +105,7 @@ export function replaceUserNames(scope: Scope): void {
       texts: changes,
       replacement: entry.name,
       moves: move ? [move] : [],
+      added: carrier.created ? name : null,
       ...(title ? { title } : {}),
     });
   };
@@ -119,6 +133,7 @@ export function replaceUserNames(scope: Scope): void {
       const current = change.texts.map(({ node }) => node.data).join('').trim();
       if (current !== change.replacement) continue;
       for (const { node, original } of change.texts) node.data = original;
+      change.added?.remove();
       const title = change.title;
       if (title && anchor.getAttribute('title') === title.value) {
         if (title.previous === null) anchor.removeAttribute('title');
