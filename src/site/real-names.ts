@@ -5,6 +5,8 @@ import { realNames } from '../features/real-names/users';
 // Only profile links; /user/<id>/friend and other subpages keep their own labels.
 const userHref = /^\/user\/(\d+)\/?(?:[?#].*)?$/;
 const anchorSelector = 'a[href^="/user/"]';
+// The site tags its own debug links with an inline inherit color; they never show a user name.
+const ignoredStyle = /color\s*:\s*inherit\b/i;
 
 type TextChange = { readonly node: Text; readonly original: string };
 type MoveChange = { readonly node: Element; readonly parent: Element; readonly next: Node | null };
@@ -75,6 +77,7 @@ export function replaceUserNames(scope: Scope): void {
     const href = anchor.getAttribute('href');
     const id = href ? userHref.exec(href)?.[1] : undefined;
     if (!id) return;
+    if (ignoredStyle.test(anchor.getAttribute('style') ?? '')) return;
     const entry = realNames[id];
     // The table is bundled, so unknown ids stay unknown for the whole page lifetime.
     if (!entry?.name) {

@@ -107,6 +107,16 @@ test('links with no children at all still receive the real name and clear on dis
   assert.equal(anchor.childNodes.length, 0);
 });
 
+test('links with an inline inherit color are left alone', () => {
+  const { document } = fixture(
+    `<a id="debug" href="/user/${yearId}" style="color: inherit; "></a><a id="user" href="/user/${yearId}"></a>`,
+  );
+  const debug = document.querySelector('#debug');
+  assert.equal(debug.textContent, '');
+  assert.equal(debug.hasAttribute('title'), false);
+  assert.equal(document.querySelector('#user').textContent, yearEntry.name);
+});
+
 test('blank link text is reused instead of adding an empty node', () => {
   const { document, scope } = fixture(`<a id="user" href="/user/${yearId}"> </a>`);
   const anchor = document.querySelector('#user');
