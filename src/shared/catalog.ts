@@ -34,6 +34,12 @@ export const moduleCatalog = [
     description: '把用户名链接显示为真名，并标注毕业信息。',
     defaultEnabled: true,
   },
+  {
+    id: 'chat',
+    title: '聊天器',
+    description: '在 /chat 页面用自建聊天器替换原聊天界面。',
+    defaultEnabled: true,
+  },
 ] as const;
 
 export type ModuleId = (typeof moduleCatalog)[number]['id'];

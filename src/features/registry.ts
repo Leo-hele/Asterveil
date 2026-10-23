@@ -1,5 +1,5 @@
 import type { ModuleDefinition } from '../core/module';
-import { matchesAppearancePage } from '../site/appearance';
+import { appearancePage, matchesAppearancePage } from '../site/appearance';
 import { matchesHomeworkPage } from '../site/homework';
 
 export const modules = [
@@ -23,5 +23,10 @@ export const modules = [
     id: 'real-names',
     matches: () => true,
     load: () => import('./real-names').then((module) => module.default),
+  },
+  {
+    id: 'chat',
+    matches: (url) => appearancePage(url) === 'chat',
+    load: () => import('./chat').then((module) => module.default),
   },
 ] satisfies readonly ModuleDefinition[];
