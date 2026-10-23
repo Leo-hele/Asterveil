@@ -1,5 +1,12 @@
-import type { ChatConversation, ChatMessage, ChatSnapshot, ChatToken } from './model';
-import { parseInfo, parseMessages, parseToken } from './model';
+import type {
+  ChatConversation,
+  ChatMessage,
+  ChatSnapshot,
+  ChatToken,
+  GroupAction,
+  GroupExtra,
+} from './model';
+import { groupPayload, parseInfo, parseMessages, parseToken } from './model';
 
 const requestTimeout = 12_000;
 
@@ -22,6 +29,7 @@ export interface ChatApi {
     selfId: number,
     content: string,
   ): Promise<{ messages: readonly ChatMessage[]; token: ChatToken }>;
+  group(action: GroupAction, groupId: number | null, extra?: GroupExtra): Promise<void>;
   token(): Promise<ChatToken>;
 }
 
@@ -129,6 +137,9 @@ export function createChatApi(fetcher: typeof fetch = fetch): ChatApi {
         ),
         token: parseToken(payload),
       };
+    },
+    async group(action, groupId, extra = {}) {
+      await request('POST', '/chat/group', { data: groupPayload(action, groupId, extra) });
     },
     async token() {
       return parseToken(await request('POST', '/chat/chat', { data: { type: 'none' } }));

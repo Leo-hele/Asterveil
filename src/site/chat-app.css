@@ -27,7 +27,19 @@
 }
 
 .sidebar-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
   padding: 14px;
+}
+
+.sidebar-head .search {
+  flex: 1;
+  min-width: 0;
+}
+
+.new-group {
+  flex: none;
 }
 
 .search {
@@ -179,6 +191,7 @@
 }
 
 .main {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -462,6 +475,113 @@
 .conversations {
   scrollbar-width: thin;
   scrollbar-color: var(--av-border, #d8e1ec) transparent;
+}
+
+.group-panel {
+  position: absolute;
+  inset: 0 0 0 auto;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  width: min(300px, 86%);
+  border-left: 1px solid var(--av-border, #d8e1ec);
+  background: var(--av-paper, #fff);
+  box-shadow: -12px 0 24px rgba(24, 48, 77, 0.08);
+}
+
+.group-panel[hidden] {
+  display: none;
+}
+
+.group-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--av-border, #d8e1ec);
+}
+
+.group-title {
+  overflow: hidden;
+  color: var(--av-heading, #182b40);
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-members {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  padding: 8px 10px;
+  overflow: auto;
+}
+
+.group-member {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 8px;
+}
+
+.group-member:hover {
+  background: var(--av-hover, #eef4fa);
+}
+
+.group-member-identity {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.group-member-identity strong {
+  overflow: hidden;
+  color: var(--av-heading, #182b40);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-member .role {
+  flex: none;
+  color: var(--av-muted, #6b7f96);
+  font-size: 11px;
+}
+
+.group-member-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.ghost.small {
+  padding: 3px 7px;
+  font-size: 11px;
+}
+
+.ghost.danger {
+  border-color: #e6b8b8;
+  color: #c24141;
+}
+
+.group-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--av-border, #d8e1ec);
+}
+
+@media (max-width: 560px) {
+  .group-panel {
+    width: 100%;
+  }
 }
 
 @media (max-width: 760px) {

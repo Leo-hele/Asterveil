@@ -95,6 +95,8 @@ function fixture() {
       clearTimeout,
       setInterval,
       clearInterval,
+      prompt: () => null,
+      confirm: () => false,
     },
     Node: window.Node,
     NodeFilter: { SHOW_TEXT: 4 },
@@ -152,5 +154,33 @@ test('selecting a conversation loads messages and sending posts the text', async
   assert.match(post.options.body, /content=hello/);
   assert.match(post.options.body, /target_id=12/);
   assert.match(post.options.body, /type=user/);
+  scope.dispose();
+});
+
+test('group management lists members and posts group actions', async () => {
+  const { window, root, requests, scope } = fixture();
+  window.prompt = () => '新名字';
+  window.confirm = () => true;
+  await setImmediate();
+  const groupItem = Array.from(root.querySelectorAll('.conversation')).find((item) =>
+    item.dataset.key.startsWith('group:'),
+  );
+  groupItem.dispatchEvent(new window.Event('click', { bubbles: true }));
+  await setImmediate();
+  const panel = root.querySelector('.group-panel');
+  assert.equal(panel.hidden, true);
+  root.querySelector('[data-action="group"]').dispatchEvent(new window.Event('click', { bubbles: true }));
+  assert.equal(panel.hidden, false);
+  assert.equal(root.querySelectorAll('.group-member').length, 1);
+  const rename = Array.from(root.querySelectorAll('.group-actions button')).find(
+    (button) => button.textContent === '修改群名',
+  );
+  rename.dispatchEvent(new window.Event('click', { bubbles: true }));
+  await setImmediate();
+  const post = requests.filter((item) => item.url.includes('/chat/group')).at(-1);
+  assert.ok(post);
+  assert.match(post.options.body, /type=set_title/);
+  assert.match(post.options.body, /group_id=5/);
+  assert.match(post.options.body, /title=/);
   scope.dispose();
 });
