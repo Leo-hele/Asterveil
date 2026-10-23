@@ -48,7 +48,16 @@ test('info payloads produce user and group conversations with limits', () => {
           { source_id: 7, target_id: 13 },
           { source_id: 14, target_id: 7, real_name: '李四' },
         ],
-        groups: [{ id: 5, title: '竞赛组', users: [{ id: 7 }, { user_id: 9 }] }],
+        groups: [
+          {
+            id: 5,
+            title: '竞赛组',
+            users: [
+              { id: 7, type: 'Owner' },
+              { user_id: 9, type: 'Administrator' },
+            ],
+          },
+        ],
       },
     },
     { '9': '王五' },
@@ -66,7 +75,9 @@ test('info payloads produce user and group conversations with limits', () => {
   assert.equal(group.name, '竞赛组');
   assert.equal(group.members.length, 2);
   assert.equal(group.members[0].name, '用户 7');
+  assert.equal(group.members[0].role, 'Owner');
   assert.equal(group.members[1].name, '王五');
+  assert.equal(group.members[1].role, 'Administrator');
 });
 
 test('token counts accept nested payloads', () => {
@@ -197,6 +208,30 @@ test('conversation filters respect scope and search text', () => {
     ['user:12'],
   );
   assert.equal(model.filterConversations(list, 'user', '竞赛').length, 0);
+});
+
+test('group actions use the official field names and absolute mute times', () => {
+  const now = 1_750_000_000_000;
+  assert.deepEqual({ ...model.groupPayload('set_title', 5, { title: '新群' }) }, {
+    type: 'set_title',
+    group_id: 5,
+    title: '新群',
+  });
+  assert.deepEqual({ ...model.groupPayload('del_member', 5, { targetId: 9 }) }, {
+    type: 'del_member',
+    group_id: 5,
+    target_id: 9,
+  });
+  assert.deepEqual({ ...model.groupPayload('mute_group', 5, { seconds: 600 }, now) }, {
+    type: 'mute_group',
+    group_id: 5,
+    mute: 1_750_000_600,
+  });
+  assert.deepEqual({ ...model.groupPayload('setup', null, { title: '新群' }) }, {
+    type: 'setup',
+    title: '新群',
+  });
+  assert.deepEqual({ ...model.groupPayload('leave', 5) }, { type: 'leave', group_id: 5 });
 });
 
 test('time, unread and value helpers stay defensive', () => {

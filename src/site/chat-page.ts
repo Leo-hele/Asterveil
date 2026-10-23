@@ -8,6 +8,8 @@ import type {
   ChatMessage,
   ChatScope,
   ChatToken,
+  GroupAction,
+  GroupExtra,
 } from '../features/chat/model';
 import { filterConversations, formatTime, mergeMessages } from '../features/chat/model';
 import { realNames } from '../features/real-names/users';
@@ -32,6 +34,7 @@ interface ChatState {
   scope: ChatScope;
   query: string;
   loading: boolean;
+  groupPanel: boolean;
 }
 
 function element<K extends keyof HTMLElementTagNameMap>(
@@ -95,6 +98,7 @@ export function mountChatPage(scope: Scope): void {
     scope: 'all',
     query: '',
     loading: false,
+    groupPanel: false,
   };
 
   const host = document.createElement('section');
@@ -126,6 +130,11 @@ export function mountChatPage(scope: Scope): void {
   const sendEl = get<HTMLButtonElement>('.send');
   const searchEl = get<HTMLInputElement>('.search');
   const tabsEl = get<HTMLElement>('.tabs');
+  const groupButton = get<HTMLButtonElement>('[data-action="group"]');
+  const groupPanelEl = get<HTMLElement>('.group-panel');
+  const groupTitleEl = get<HTMLElement>('.group-title');
+  const groupMembersEl = get<HTMLElement>('.group-members');
+  const groupActionsEl = get<HTMLElement>('.group-actions');
 
   let frame = 0;
   let draftTimer = 0;
@@ -301,9 +310,12 @@ export function mountChatPage(scope: Scope): void {
 
   function renderHeader(): void {
     const conversation = current();
+    groupButton.disabled = conversation?.type !== 'group';
     if (!conversation) {
       titleEl.textContent = '请选择会话';
       metaEl.textContent = '同步会话后可开始聊天';
+      state.groupPanel = false;
+      groupPanelEl.hidden = true;
       return;
     }
     titleEl.textContent = conversation.name;
@@ -311,6 +323,197 @@ export function mountChatPage(scope: Scope): void {
     const recover =
       state.limits.recover !== null ? ` · Token ${state.limits.recover}s 恢复` : '';
     metaEl.textContent = `${type} · ID ${conversation.id}${recover}`;
+    if (conversation.type !== 'group') {
+      state.groupPanel = false;
+      groupPanelEl.hidden = true;
+    }
+  }
+
+  function roleLabel(role: string): string {
+    if (role === 'Owner') return '群主';
+    if (role === 'Administrator') return '管理员';
+    return '成员';
+  }
+
+  function roleRank(role: string): number {
+    if (role === 'Owner') return 0;
+    if (role === 'Administrator') return 1;
+    return 2;
+  }
+
+  function actionButton(label: string, handler: () => void, className = 'ghost small'): HTMLButtonElement {
+    const button = element('button', className, label);
+    button.type = 'button';
+    button.addEventListener('click', handler);
+    return button;
+  }
+
+  function renderGroupPanel(): void {
+    const conversation = current();
+    if (!conversation || conversation.type !== 'group' || !state.groupPanel) {
+      groupPanelEl.hidden = true;
+      state.groupPanel = false;
+      return;
+    }
+    groupPanelEl.hidden = false;
+    groupTitleEl.textContent = `${conversation.name} · ${conversation.members.length} 人`;
+    const self = conversation.members.find((member) => member.id === state.selfId);
+    const isOwner = self?.role === 'Owner';
+    groupMembersEl.replaceChildren();
+    const members = [...conversation.members].sort(
+      (a, b) => roleRank(a.role) - roleRank(b.role) || a.name.localeCompare(b.name, 'zh-Hans-CN'),
+    );
+    if (!members.length) groupMembersEl.append(element('p', 'empty-thread', '暂无成员'));
+    for (const member of members) {
+      const row = element('div', 'group-member');
+      const identity = element('span', 'group-member-identity');
+      identity.append(element('strong', undefined, member.name));
+      identity.append(element('span', 'role', `${roleLabel(member.role)} · ${member.id}`));
+      row.append(identity);
+      if (member.id === state.selfId) {
+        groupMembersEl.append(row);
+        continue;
+      }
+      const actions = element('span', 'group-member-actions');
+      actions.append(
+        actionButton('禁言', () => {
+          const raw = window.prompt(`禁言 ${member.name} 的秒数（0 解除）`, '600');
+          if (raw === null) return;
+          const seconds = Number(raw);
+          if (!Number.isFinite(seconds) || seconds < 0) return;
+          void runGroup('mute_member', { targetId: member.id, seconds });
+        }),
+      );
+      actions.append(
+        actionButton(member.role === 'Administrator' ? '取消管理' : '设管理', () => {
+          void runGroup(
+            member.role === 'Administrator' ? 'del_administrator' : 'add_administrator',
+            { targetId: member.id },
+          );
+        }),
+      );
+      actions.append(
+        actionButton('移除', () => {
+          if (!window.confirm(`将 ${member.name} 移出群聊？`)) return;
+          void runGroup('del_member', { targetId: member.id });
+        }),
+      );
+      if (isOwner) {
+        actions.append(
+          actionButton('转让', () => {
+            if (!window.confirm(`把群主转让给 ${member.name}？转让后你将成为普通成员。`)) return;
+            void runGroup('give_owner', { targetId: member.id });
+          }),
+        );
+      }
+      row.append(actions);
+      groupMembersEl.append(row);
+    }
+    groupActionsEl.replaceChildren(
+      actionButton('修改群名', () => {
+        const raw = window.prompt('新的群名称', conversation.name);
+        if (raw === null || !raw.trim() || raw.trim() === conversation.name) return;
+        void runGroup('set_title', { title: raw.trim() });
+      }),
+      actionButton('添加成员', () => {
+        const raw = window.prompt('要添加的用户 ID');
+        if (raw === null || !/^\d+$/.test(raw.trim())) return;
+        void runGroup('add_member', { targetId: Number(raw.trim()) });
+      }),
+      actionButton('全体禁言', () => {
+        const raw = window.prompt('全体禁言的秒数（0 解除）', '600');
+        if (raw === null) return;
+        const seconds = Number(raw);
+        if (!Number.isFinite(seconds) || seconds < 0) return;
+        void runGroup('mute_group', { seconds });
+      }),
+      actionButton('退出群聊', () => {
+        if (!window.confirm(`退出「${conversation.name}」？`)) return;
+        void leaveGroup();
+      }),
+    );
+    if (isOwner) {
+      groupActionsEl.append(actionButton('解散群', () => void disbandGroup(), 'ghost small danger'));
+    }
+  }
+
+  async function runGroup(action: GroupAction, extra: GroupExtra = {}): Promise<boolean> {
+    const conversation = current();
+    if (!conversation || conversation.type !== 'group') {
+      setStatus('请先选择一个群聊', 'error');
+      return false;
+    }
+    try {
+      setStatus('正在执行群操作…');
+      await api.group(action, conversation.id, extra);
+      setStatus('群操作成功', 'success');
+      await sync();
+      renderGroupPanel();
+      return true;
+    } catch (error) {
+      if (!disposed) setStatus(`群操作失败：${errorText(error)}`, 'error');
+      return false;
+    }
+  }
+
+  async function leaveGroup(): Promise<void> {
+    const conversation = current();
+    if (!conversation || conversation.type !== 'group') return;
+    try {
+      await api.group('leave', conversation.id);
+      state.groupPanel = false;
+      setStatus('已退出群聊', 'success');
+      await sync();
+    } catch (error) {
+      setStatus(`退出失败：${errorText(error)}`, 'error');
+    }
+  }
+
+  async function disbandGroup(): Promise<void> {
+    const conversation = current();
+    const self = conversation?.members.find((member) => member.id === state.selfId);
+    if (!conversation || conversation.type !== 'group') return;
+    if (self?.role !== 'Owner') {
+      setStatus('只有群主可以解散群', 'error');
+      return;
+    }
+    const others = conversation.members.filter((member) => member.id !== state.selfId);
+    if (
+      !window.confirm(
+        `解散「${conversation.name}」将移除 ${others.length} 名成员且不可撤销，继续？`,
+      )
+    ) {
+      return;
+    }
+    try {
+      for (const member of others) {
+        await api.group('del_member', conversation.id, { targetId: member.id });
+      }
+      await api.group('leave', conversation.id);
+      state.groupPanel = false;
+      setStatus('群已解散', 'success');
+      await sync();
+    } catch (error) {
+      setStatus(`解散失败：${errorText(error)}`, 'error');
+    }
+  }
+
+  async function createGroup(): Promise<void> {
+    const raw = window.prompt('新群名称');
+    const title = raw?.trim();
+    if (!title) return;
+    try {
+      setStatus('正在创建群聊…');
+      await api.group('setup', null, { title });
+      setStatus('群聊已创建', 'success');
+      await sync();
+      const created = state.conversations.find(
+        (conversation) => conversation.type === 'group' && conversation.name === title,
+      );
+      if (created) selectConversation(created.key);
+    } catch (error) {
+      setStatus(`创建失败：${errorText(error)}`, 'error');
+    }
   }
 
   function renderToken(): void {
@@ -345,8 +548,10 @@ export function mountChatPage(scope: Scope): void {
     if (previous) saveDraft(previous.key, inputEl.value);
     state.activeKey = key;
     inputEl.value = state.drafts[key] ?? '';
+    state.groupPanel = false;
     renderConversations();
     renderHeader();
+    renderGroupPanel();
     renderMessages({ bottom: true });
     renderComposer();
     inputEl.focus({ preventScroll: true });
@@ -501,6 +706,7 @@ export function mountChatPage(scope: Scope): void {
         state.conversations.length ? 'success' : 'error',
       );
       if (state.activeKey) await loadActive({ silent: true, bottom: true });
+      renderGroupPanel();
     } catch (error) {
       if (!disposed) {
         setStatus(`同步失败：${errorText(error)}`, 'error');
@@ -570,6 +776,15 @@ export function mountChatPage(scope: Scope): void {
     const action = target.dataset.action;
     if (action === 'refresh') void loadActive();
     if (action === 'token') void refreshToken();
+    if (action === 'group') {
+      state.groupPanel = !state.groupPanel;
+      renderGroupPanel();
+    }
+    if (action === 'group-close') {
+      state.groupPanel = false;
+      renderGroupPanel();
+    }
+    if (action === 'group-new') void createGroup();
   });
   const onVisibilityChange = () => {
     if (!document.hidden) void loadActive({ silent: true });
@@ -603,6 +818,7 @@ function buildShell(): HTMLElement {
   chat.innerHTML = `<aside class="sidebar" aria-label="会话列表">
     <div class="sidebar-head">
       <input class="search" type="search" placeholder="搜索会话 / ID" aria-label="搜索会话">
+      <button type="button" class="ghost new-group" data-action="group-new" title="创建群聊">新建群</button>
     </div>
     <div class="tabs" role="tablist" aria-label="会话类型">
       <button type="button" class="tab is-active" data-scope="all" role="tab" aria-selected="true">全部</button>
@@ -621,6 +837,7 @@ function buildShell(): HTMLElement {
       <div class="head-actions">
         <button type="button" class="ghost" data-action="token" title="查询 Token 用量">Token</button>
         <button type="button" class="ghost" data-action="refresh" title="刷新当前会话">刷新</button>
+        <button type="button" class="ghost" data-action="group" title="群成员与管理" disabled>群管理</button>
       </div>
     </header>
     <p class="status" role="status" aria-live="polite"></p>
@@ -633,6 +850,14 @@ function buildShell(): HTMLElement {
         <button type="button" class="send" data-action="send">发送</button>
       </div>
     </div>
+    <aside class="group-panel" hidden aria-label="群管理">
+      <header class="group-head">
+        <strong class="group-title">群管理</strong>
+        <button type="button" class="ghost" data-action="group-close">关闭</button>
+      </header>
+      <div class="group-members"></div>
+      <div class="group-actions"></div>
+    </aside>
   </section>`;
   return chat;
 }

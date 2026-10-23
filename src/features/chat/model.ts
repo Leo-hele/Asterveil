@@ -15,6 +15,7 @@ export interface ChatConversation {
 export interface ChatMember {
   readonly id: number;
   readonly name: string;
+  readonly role: string;
 }
 
 export interface ChatMessage {
@@ -223,6 +224,7 @@ export function parseInfo(
       members.push({
         id: memberId,
         name: displayName(memberId, member, `用户 ${memberId}`),
+        role: pickText(member, ['type', 'role', 'role_type', 'roleType'], ''),
       });
     }
     push({
@@ -457,4 +459,37 @@ export function formatTime(time: number): string {
 export function formatUnread(value: number): string {
   if (!Number.isFinite(value) || value <= 0) return '';
   return value > 99 ? '99+' : String(value);
+}
+
+export type GroupAction =
+  | 'setup'
+  | 'leave'
+  | 'set_title'
+  | 'add_member'
+  | 'del_member'
+  | 'add_administrator'
+  | 'del_administrator'
+  | 'mute_member'
+  | 'mute_group'
+  | 'give_owner';
+
+export interface GroupExtra {
+  readonly title?: string;
+  readonly targetId?: number;
+  readonly seconds?: number;
+}
+
+// Mute values are absolute timestamps, matching the official client.
+export function groupPayload(
+  action: GroupAction,
+  groupId: number | null,
+  extra: GroupExtra = {},
+  now = Date.now(),
+): Record<string, string | number> {
+  const payload: Record<string, string | number> = { type: action };
+  if (groupId !== null) payload.group_id = groupId;
+  if (extra.title !== undefined) payload.title = extra.title;
+  if (extra.targetId !== undefined) payload.target_id = extra.targetId;
+  if (extra.seconds !== undefined) payload.mute = Math.floor(now / 1000) + extra.seconds;
+  return payload;
 }
