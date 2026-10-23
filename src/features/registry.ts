@@ -36,4 +36,9 @@ export const modules = [
     matches: () => true,
     load: () => import('./real-names').then((module) => module.default),
   },
+  {
+    id: 'chat',
+    matches: (url) => appearancePage(url) === 'chat',
+    load: () => import('./chat').then((module) => module.default),
+  },
 ] satisfies readonly ModuleDefinition[];
