@@ -75,7 +75,19 @@ function fixture() {
       });
     }
     if (target.pathname === '/chat/chat' && target.searchParams.get('type') === 'user') {
-      return json({ chat: [{ id: 1, sender_id: 12, content: 'hi', time: 1000 }] });
+      return json({
+        chat: [
+          { id: 1, sender_id: 12, content: 'hi', time: 1000 },
+          { id: 2, sender_id: 12, content: '{"type":"pat","target":7}', time: 1001 },
+          {
+            id: 3,
+            sender_id: 12,
+            content:
+              '{"type":"vote","poll":"19128","pick":[],"custom":"上课时间不准水群，再水就禁言了/zy"}',
+            time: 1002,
+          },
+        ],
+      });
     }
     if (target.pathname === '/chat/chat' && options.method === 'POST') {
       return json({
@@ -154,6 +166,22 @@ test('selecting a conversation loads messages and sending posts the text', async
   assert.match(post.options.body, /content=hello/);
   assert.match(post.options.body, /target_id=12/);
   assert.match(post.options.body, /type=user/);
+  scope.dispose();
+});
+
+test('pat and vote messages render as readable events', async () => {
+  const { window, root, scope } = fixture();
+  await setImmediate();
+  const userItem = Array.from(root.querySelectorAll('.conversation')).find((item) =>
+    item.dataset.key.startsWith('user:'),
+  );
+  userItem.dispatchEvent(new window.Event('click', { bubbles: true }));
+  await setImmediate();
+  assert.equal(root.querySelectorAll('.message.event').length, 1);
+  assert.match(root.querySelector('.message.event .event-text').textContent, /拍了拍我/);
+  assert.equal(root.querySelectorAll('.vote').length, 1);
+  assert.match(root.querySelector('.vote-head').textContent, /19128/);
+  assert.match(root.querySelector('.vote .paper').textContent, /上课时间不准水群/);
   scope.dispose();
 });
 

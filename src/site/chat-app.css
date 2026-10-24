@@ -352,6 +352,44 @@
   border-color: #e6b8b8;
 }
 
+.message.event {
+  justify-content: center;
+}
+
+.message.event .event-text {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--av-tint, #e8f1fb);
+  color: var(--av-muted, #6b7f96);
+  font-size: 12px;
+}
+
+.vote {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 170px;
+}
+
+.vote-head {
+  color: var(--av-accent, #3b82c4);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.vote .paper {
+  padding: 0;
+  border: 0;
+  min-height: 0;
+  background: transparent;
+  font-size: 13.5px;
+}
+
+.vote-picks {
+  color: var(--av-muted, #6b7f96);
+  font-size: 12px;
+}
+
 .bubble .paper {
   padding: 0;
   border: 0;

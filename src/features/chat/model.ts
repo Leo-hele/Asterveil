@@ -18,12 +18,23 @@ export interface ChatMember {
   readonly role: string;
 }
 
+export type ChatMessageKind = 'text' | 'vote' | 'pat';
+
+export interface ChatMessageBody {
+  readonly kind: ChatMessageKind;
+  readonly text: string;
+  readonly pollId: string;
+  readonly picks: readonly string[];
+  readonly targetId: number;
+}
+
 export interface ChatMessage {
   readonly id: string;
   readonly conversationKey: string;
   readonly senderId: number;
   readonly targetId: number;
   readonly content: string;
+  readonly body: ChatMessageBody;
   readonly time: number;
   readonly isSelf: boolean;
   readonly localId?: string;
@@ -133,23 +144,51 @@ function activityOf(source: Record<string, unknown>): number {
   return Number.NaN;
 }
 
-// Better Names stores message bodies as plain text or as a JSON text envelope.
-export function messageContent(value: unknown): string {
-  if (isRecord(value)) {
-    return typeof value.content === 'string' ? value.content : String(value);
-  }
-  const original = value == null ? '' : String(value);
-  const trimmed = original.trim();
-  if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) return original;
-  try {
-    const payload: unknown = JSON.parse(trimmed);
-    if (isRecord(payload) && payload.type === 'text' && typeof payload.content === 'string') {
-      return payload.content;
+// Chat payloads also carry votes and pats as JSON envelopes; turn them into readable parts.
+export function parseMessageBody(value: unknown): ChatMessageBody {
+  const base: ChatMessageBody = {
+    kind: 'text',
+    text: value == null ? '' : String(value),
+    pollId: '',
+    picks: [],
+    targetId: Number.NaN,
+  };
+  let payload: Record<string, unknown> | undefined;
+  if (isRecord(value)) payload = value;
+  else if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      try {
+        const parsed: unknown = JSON.parse(trimmed);
+        if (isRecord(parsed)) payload = parsed;
+      } catch {
+        // Ordinary chat text can look JSON-like; keep it unchanged when parsing fails.
+      }
     }
-  } catch {
-    // Ordinary chat text can look JSON-like; keep it unchanged when parsing fails.
   }
-  return original;
+  if (!payload) return base;
+  if (payload.type === 'text' && typeof payload.content === 'string') {
+    return { ...base, text: payload.content };
+  }
+  if (payload.type === 'vote') {
+    return {
+      kind: 'vote',
+      text: typeof payload.custom === 'string' ? payload.custom : '',
+      pollId: payload.poll == null ? '' : String(payload.poll),
+      picks: Array.isArray(payload.pick) ? payload.pick.map((item) => String(item)) : [],
+      targetId: Number.NaN,
+    };
+  }
+  if (payload.type === 'pat') {
+    return { ...base, kind: 'pat', targetId: toInteger(payload.target) };
+  }
+  return base;
+}
+
+export function messageContent(value: unknown): string {
+  const body = parseMessageBody(value);
+  if (body.kind === 'text') return body.text;
+  return typeof value === 'string' ? value : JSON.stringify(value);
 }
 
 function friendIdOf(friend: Record<string, unknown>, selfId: number): number {
@@ -317,7 +356,9 @@ export function normalizeMessage(raw: unknown, options: NormalizeOptions): ChatM
     if (options.direction === 'group') targetId = options.conversation.id;
   }
   if (!Number.isFinite(senderId) && Number.isFinite(peer)) senderId = peer;
-  const content = messageContent(raw.content ?? raw.message ?? raw.text ?? raw.body_md ?? raw.body);
+  const rawContent = raw.content ?? raw.message ?? raw.text ?? raw.body_md ?? raw.body;
+  const body = parseMessageBody(rawContent);
+  const content = messageContent(rawContent);
   if (!content.trim()) return null;
   const time = normalizeTime(
     raw.timestamp ?? raw.send_time ?? raw.sendTime ?? raw.time ?? raw.created_at ?? raw.createdAt,
@@ -336,6 +377,7 @@ export function normalizeMessage(raw: unknown, options: NormalizeOptions): ChatM
     senderId,
     targetId,
     content,
+    body,
     time,
     isSelf,
   };
@@ -350,9 +392,27 @@ export function parseMessages(
   const messages: ChatMessage[] = [];
   for (const raw of chatItems(payload)) {
     const message = normalizeMessage(raw, { selfId, conversation, direction });
-    if (message) messages.push(message);
+    if (!message) continue;
+    if (belongsToConversation(message, conversation, direction, selfId)) messages.push(message);
   }
   return messages.sort(compareMessages);
+}
+
+// The chat endpoint can return neighbouring conversations; keep only this thread's messages.
+export function belongsToConversation(
+  message: ChatMessage,
+  conversation: ChatConversation,
+  direction: MessageDirection,
+  selfId: number,
+): boolean {
+  if (conversation.type === 'group') return message.targetId === conversation.id;
+  const selfKnown = Number.isFinite(selfId);
+  if (direction === 'out' || message.isSelf) {
+    if (message.targetId !== conversation.id) return false;
+    return !selfKnown || !Number.isFinite(message.senderId) || message.senderId === selfId;
+  }
+  if (message.senderId !== conversation.id) return false;
+  return !selfKnown || !Number.isFinite(message.targetId) || message.targetId === selfId;
 }
 
 export function compareMessages(a: ChatMessage, b: ChatMessage): number {
