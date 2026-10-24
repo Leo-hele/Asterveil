@@ -122,6 +122,46 @@ test('messages keep direction, sender and normalised timestamps', () => {
   assert.equal(sent[0].time, 1_750_000_000);
 });
 
+test('message windows drop other conversations returned by the API', () => {
+  const conversation = {
+    key: 'user:12',
+    type: 'user',
+    id: 12,
+    name: '张三',
+    subtitle: '',
+    members: [],
+    activity: Number.NaN,
+  };
+  const received = model.parseMessages(
+    {
+      chat: [
+        { id: 1, sender_id: 12, target_id: 7, content: 'mine', time: 1 },
+        { id: 2, sender_id: 13, target_id: 7, content: 'other friend', time: 2 },
+        { id: 3, sender_id: 12, target_id: 99, content: 'wrong target', time: 3 },
+      ],
+    },
+    conversation,
+    'in',
+    7,
+  );
+  assert.equal(received.length, 1);
+  assert.equal(received[0].content, 'mine');
+
+  const sent = model.parseMessages(
+    {
+      chat: [
+        { id: 4, sender_id: 7, target_id: 12, content: 'to 12', time: 4 },
+        { id: 5, sender_id: 7, target_id: 13, content: 'to 13', time: 5 },
+      ],
+    },
+    conversation,
+    'out',
+    7,
+  );
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].content, 'to 12');
+});
+
 test('group messages mark the current user and unwrap JSON text bodies', () => {
   const group = {
     key: 'group:5',
@@ -208,6 +248,37 @@ test('conversation filters respect scope and search text', () => {
     ['user:12'],
   );
   assert.equal(model.filterConversations(list, 'user', '竞赛').length, 0);
+});
+
+test('vote and pat envelopes parse into readable parts', () => {
+  const vote = model.parseMessageBody(
+    '{"type":"vote","poll":"19128","pick":[],"custom":"↑上课时间不准水群，再水就禁言了/zy"}',
+  );
+  assert.equal(vote.kind, 'vote');
+  assert.equal(vote.pollId, '19128');
+  assert.equal(vote.text, '↑上课时间不准水群，再水就禁言了/zy');
+  assert.equal(vote.picks.length, 0);
+
+  const picked = model.parseMessageBody('{"type":"vote","poll":7,"pick":["A","B"]}');
+  assert.equal(picked.pollId, '7');
+  assert.equal(picked.picks.length, 2);
+  assert.equal(picked.picks[0], 'A');
+
+  const pat = model.parseMessageBody('{"type":"pat","target":1451}');
+  assert.equal(pat.kind, 'pat');
+  assert.equal(pat.targetId, 1451);
+
+  const text = model.parseMessageBody('{"type":"text","content":"hello"}');
+  assert.equal(text.kind, 'text');
+  assert.equal(text.text, 'hello');
+
+  const plain = model.parseMessageBody('plain');
+  assert.equal(plain.kind, 'text');
+  assert.equal(plain.text, 'plain');
+
+  const unknown = model.parseMessageBody('{"type":"other","value":1}');
+  assert.equal(unknown.kind, 'text');
+  assert.equal(unknown.text, '{"type":"other","value":1}');
 });
 
 test('group actions use the official field names and absolute mute times', () => {

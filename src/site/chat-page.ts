@@ -11,7 +11,12 @@ import type {
   GroupAction,
   GroupExtra,
 } from '../features/chat/model';
-import { filterConversations, formatTime, mergeMessages } from '../features/chat/model';
+import {
+  filterConversations,
+  formatTime,
+  mergeMessages,
+  parseMessageBody,
+} from '../features/chat/model';
 import { realNames } from '../features/real-names/users';
 import { renderMarkdown } from '../features/homework/markdown';
 import markdownCss from '../features/homework/markdown.css?inline';
@@ -197,7 +202,31 @@ export function mountChatPage(scope: Scope): void {
     return conversation?.name ?? storedName(message.senderId) ?? `用户 ${message.senderId}`;
   }
 
+  function patTarget(message: ChatMessage): string {
+    if (message.body.targetId === state.selfId) return '我';
+    const conversation = current();
+    return (
+      storedName(message.body.targetId) ??
+      conversation?.members.find((member) => member.id === message.body.targetId)?.name ??
+      `用户 ${message.body.targetId}`
+    );
+  }
+
+  function messageSummary(message: ChatMessage): string {
+    if (message.body.kind === 'pat') return '[拍了拍]';
+    if (message.body.kind === 'vote') {
+      const text = message.body.text.replace(/\s+/g, ' ').trim();
+      return text ? `[投票] ${text}` : '[投票]';
+    }
+    return message.content.replace(/\s+/g, ' ').slice(0, 80);
+  }
+
   function messageRow(message: ChatMessage): HTMLElement {
+    if (message.body.kind === 'pat') {
+      const event = element('div', 'message event');
+      event.append(element('span', 'event-text', `${senderName(message)} 拍了拍${patTarget(message)}`));
+      return event;
+    }
     const row = element('div', `message${message.isSelf ? ' self' : ''}`);
     const avatar = element(
       'span',
@@ -210,16 +239,36 @@ export function mountChatPage(scope: Scope): void {
     meta.append(element('span', undefined, formatTime(message.time)));
     if (message.sendState === 'pending') meta.append(element('span', 'state', '发送中'));
     const bubble = element('div', 'bubble');
-    const paper = element('article', 'paper chat-paper');
-    bubble.append(paper);
-    if (message.content.length <= longMessage) {
-      try {
-        renderMarkdown(message.content, paper, { chat: true });
-      } catch {
+    if (message.body.kind === 'vote') {
+      const card = element('div', 'vote');
+      card.append(
+        element('div', 'vote-head', message.body.pollId ? `投票 · #${message.body.pollId}` : '投票'),
+      );
+      if (message.body.text) {
+        const paper = element('article', 'paper chat-paper');
+        try {
+          renderMarkdown(message.body.text, paper, { chat: true });
+        } catch {
+          paper.textContent = message.body.text;
+        }
+        card.append(paper);
+      }
+      if (message.body.picks.length) {
+        card.append(element('div', 'vote-picks', `已选：${message.body.picks.join('、')}`));
+      }
+      bubble.append(card);
+    } else {
+      const paper = element('article', 'paper chat-paper');
+      bubble.append(paper);
+      if (message.content.length <= longMessage) {
+        try {
+          renderMarkdown(message.content, paper, { chat: true });
+        } catch {
+          paper.textContent = message.content;
+        }
+      } else {
         paper.textContent = message.content;
       }
-    } else {
-      paper.textContent = message.content;
     }
     main.append(meta, bubble);
     if (message.sendState === 'failed') {
@@ -297,7 +346,7 @@ export function mountChatPage(scope: Scope): void {
         'span',
         'conversation-preview',
         latest
-          ? `${latest.isSelf ? '我: ' : ''}${latest.content.replace(/\s+/g, ' ').slice(0, 80)}`
+          ? `${latest.isSelf ? '我: ' : ''}${messageSummary(latest)}`
           : conversation.subtitle,
       );
       body.append(top, preview);
@@ -609,6 +658,7 @@ export function mountChatPage(scope: Scope): void {
       senderId: state.selfId,
       targetId: conversation.id,
       content,
+      body: parseMessageBody(content),
       time: Math.floor(Date.now() / 1000),
       isSelf: true,
       sendState: 'pending',
