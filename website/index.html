@@ -3,14 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#07080b" />
+    <meta name="theme-color" content="#000000" />
     <meta name="description" content="Asterveil 浏览器扩展。" />
     <meta property="og:title" content="Asterveil" />
     <meta property="og:description" content="为 7FA4 而作的开源浏览器扩展。" />
     <meta property="og:type" content="website" />
     <title>Asterveil</title>
     <link rel="icon" href="./icon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="./style.css" />
+    <link rel="preload" href="./fonts/instrument-sans-500-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="./style.css?v=4" />
+    <script type="module" src="./starfield.js?v=5"></script>
     <script type="module" src="./main.js"></script>
   </head>
   <body>
@@ -20,12 +22,13 @@
       </defs>
     </svg>
     <div class="page">
+      <div id="site-sky" aria-hidden="true"><canvas class="starfield"></canvas></div>
       <header class="header">
         <a class="brand" href="./" aria-label="Asterveil 首页">
           <svg viewBox="0 0 128 128" aria-hidden="true"><use href="#asterveil-mark" /></svg>
           <span class="sr-only">Asterveil 首页</span>
         </a>
-        <a class="quiet-link github" href="https://github.com/DestinyleSnowy/Asterveil" target="_blank" rel="noopener noreferrer">GitHub <span aria-hidden="true">↗</span></a>
+        <a class="site-home" href="https://yxyx.space/">yxyx.space</a>
       </header>
 
       <main id="main">
@@ -75,14 +78,14 @@
           <div class="pulse"></div>
         </div>
         <section class="hero" aria-labelledby="headline">
-          <h1 id="headline" class="wordmark" aria-label="Asterveil">Aster<span>veil</span></h1>
-          <a class="download" href="https://github.com/DestinyleSnowy/Asterveil/releases/latest" target="_blank" rel="noopener noreferrer">下载扩展 <span aria-hidden="true">↗</span></a>
+          <h1 id="headline" class="wordmark">Asterveil</h1>
+          <nav class="hero-links" aria-label="扩展链接">
+            <a class="download" href="https://github.com/DestinyleSnowy/Asterveil/releases/latest" target="_blank" rel="noopener noreferrer">下载扩展</a>
+            <a href="https://github.com/DestinyleSnowy/Asterveil#开发与加载" target="_blank" rel="noopener noreferrer">安装指南</a>
+            <a href="https://github.com/DestinyleSnowy/Asterveil" target="_blank" rel="noopener noreferrer">GitHub</a>
+          </nav>
         </section>
       </main>
-
-      <footer class="footer">
-        <a class="quiet-link" href="https://github.com/DestinyleSnowy/Asterveil#开发与加载" target="_blank" rel="noopener noreferrer">安装指南 <span aria-hidden="true">↗</span></a>
-      </footer>
     </div>
   </body>
 </html>

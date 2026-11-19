@@ -11,6 +11,10 @@ Standalone static introduction site. The brand mark reuses the exact path from
 Clicking empty space triggers a short light pulse. Reduced-motion preferences
 disable motion, and animation pauses while the page is hidden.
 
+The wordmark uses [Instrument Sans](https://github.com/google/fonts/tree/main/ofl/instrumentsans).
+The original star and light trails sit over the same two-canvas starfield as
+yxyx.space. The font, starfield, and motion module are hosted with the page.
+
 ## Local development
 
 Requires Node.js; no package dependencies or installation are needed.

@@ -8,6 +8,10 @@ const types = {
   '/style.css': ['style.css', 'text/css; charset=utf-8'],
   '/main.js': ['main.js', 'text/javascript; charset=utf-8'],
   '/icon.svg': ['icon.svg', 'image/svg+xml'],
+  '/starfield.js': ['starfield.js', 'text/javascript; charset=utf-8'],
+  '/sky-motion.js': ['sky-motion.js', 'text/javascript; charset=utf-8'],
+  '/fonts/instrument-sans-500-latin.woff2': ['fonts/instrument-sans-500-latin.woff2', 'font/woff2'],
+  '/fonts/InstrumentSans-OFL.txt': ['fonts/InstrumentSans-OFL.txt', 'text/plain; charset=utf-8'],
 };
 const port = Number(process.env.PORT || 4173);
 createServer(async (request, response) => {

@@ -1,7 +1,41 @@
+@font-face {
+  font-family: "Instrument Sans";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./fonts/instrument-sans-500-latin.woff2") format("woff2");
+}
+
+/* Canvas geometry and the far-layer drift match yxyx.space. */
+#site-sky {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+#site-sky canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+#site-sky .starfield-backdrop {
+  inset: -48px;
+  width: calc(100% + 96px);
+  height: calc(100% + 96px);
+  animation: site-sky-drift 80s linear infinite alternate paused;
+  will-change: transform;
+}
+@keyframes site-sky-drift {
+  from { transform: translate3d(32px, -10px, 0); }
+  to { transform: translate3d(-32px, 10px, 0); }
+}
+
 :root {
   color-scheme: dark;
   font-family: Inter, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-  background: #07080b;
+  background: #000;
   color: #eeeef3;
   font-synthesis: none;
   -webkit-font-smoothing: antialiased;
@@ -36,27 +70,45 @@ a:focus-visible {
   height: 100svh;
   isolation: isolate;
   overflow: hidden;
-  background: radial-gradient(ellipse at 50% 100%, #11101b44, transparent 54%), #07080b;
 }
-.header,
-.footer {
+.header {
   position: absolute;
   left: 4.5%;
   right: 4.5%;
   z-index: 2;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-}
-.header {
+  gap: 16px;
   top: 39px;
 }
 .brand {
   display: flex;
   align-items: center;
-  gap: 12px;
-  font-size: 20px;
-  letter-spacing: -0.5px;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin: -7px;
+}
+.site-home {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-block: -7px;
+  color: #d8d4e0;
+  font-family: "Instrument Sans", system-ui, sans-serif;
+  font-size: 1.125rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  text-underline-offset: 4px;
+}
+.site-home:focus-visible {
+  outline-offset: 3px;
+}
+@media (hover: hover) {
+  .site-home:hover {
+    color: #fff;
+    text-decoration-line: underline;
+  }
 }
 .brand svg {
   width: 31px;
@@ -70,68 +122,11 @@ a:focus-visible {
   filter: drop-shadow(0 0 9px #c3a5fc88);
   transform: rotate(-8deg);
 }
-.quiet-link {
-  color: #a7a5b2;
-  font-size: 13px;
-  transition: color 0.25s;
-}
-.quiet-link:hover {
-  color: #fff;
-}
-.quiet-link span {
-  margin-left: 10px;
-}
-.hero {
-  position: relative;
-  z-index: 1;
-  text-align: center;
-  padding: clamp(165px, 24svh, 300px) 24px 0;
-  pointer-events: none;
-}
-.hero a {
-  pointer-events: auto;
-}
-.hero h1 {
-  font-size: clamp(32px, 3.35vw, 58px);
-  font-weight: 300;
-  letter-spacing: 3px;
-  line-height: 1.5;
-  margin: 0;
-  color: #f2f0f6;
-}
-.hero h1 span {
-  margin-left: -0.25em;
-}
-.download {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 22px;
-  height: 46px;
-  padding: 0 26px;
-  border: 1px solid #ffffffc9;
-  border-radius: 30px;
-  background: #eeedf2;
-  color: #232029;
-  font-size: 13px;
-  box-shadow: 0 0 26px #bca2e708;
-  transition:
-    box-shadow 0.3s,
-    background 0.3s,
-    transform 0.3s;
-}
-.download:hover {
-  background: #fff;
-  transform: translateY(-2px);
-  box-shadow: 0 0 34px #bca2e72b;
-}
-.download span {
-  font-size: 17px;
-}
 .light-scene {
   position: absolute;
   inset: 0;
   z-index: 0;
+  mix-blend-mode: screen;
   pointer-events: none;
 }
 .light-art {
@@ -177,13 +172,6 @@ a:focus-visible {
 .pulse.active {
   animation: pulse 1.6s ease-out;
 }
-.footer {
-  bottom: 31px;
-  gap: 24px;
-}
-.footer .quiet-link {
-  font-size: 11px;
-}
 @keyframes trace {
   to {
     stroke-dashoffset: -432;
@@ -211,11 +199,6 @@ a:focus-visible {
     transform: translate(-50%, -50%) scale(4);
   }
 }
-@media (min-width: 1800px) {
-  .hero {
-    padding-top: 25svh;
-  }
-}
 @media (max-width: 700px) {
   .page {
     min-height: 680px;
@@ -225,23 +208,9 @@ a:focus-visible {
     left: 7%;
     right: 7%;
   }
-  .brand {
-    font-size: 18px;
-    gap: 9px;
-  }
   .brand svg {
     width: 27px;
     height: 27px;
-  }
-  .quiet-link {
-    font-size: 12px;
-  }
-  .hero {
-    padding-top: 23svh;
-  }
-  .hero h1 {
-    font-size: clamp(27px, 6.9vw, 42px);
-    letter-spacing: 1px;
   }
   .light-art {
     width: 170%;
@@ -252,32 +221,10 @@ a:focus-visible {
     top: 72%;
     height: 200px;
   }
-  .footer {
-    left: 7%;
-    right: 7%;
-    bottom: 25px;
-    align-items: flex-start;
-  }
-  .footer .quiet-link {
-    font-size: 10px;
-    white-space: nowrap;
-    line-height: 1.8;
-  }
-  .download {
-    height: 44px;
-    padding: 0 25px;
-    font-size: 12px;
-  }
 }
 @media (max-height: 700px) and (min-width: 701px) {
   .page {
     min-height: 620px;
-  }
-  .hero {
-    padding-top: 140px;
-  }
-  .hero h1 {
-    font-size: 38px;
   }
   .light-art {
     transform: translateY(25px);
@@ -290,22 +237,13 @@ a:focus-visible {
     animation: none !important;
     transition: none !important;
   }
-  .star-motion {
+  .star-motion,
+  #site-sky .starfield-backdrop {
     will-change: auto;
   }
 }
 
 /* Oversized brand sculpture: the original icon becomes the entire light field. */
-.hero {
-  text-align: left;
-  padding: clamp(180px, 28svh, 330px) 7% 0;
-}
-.hero h1 {
-  font-size: clamp(58px, 6.4vw, 108px);
-  line-height: 1.24;
-  letter-spacing: -2px;
-  font-weight: 300;
-}
 .star-position {
   transform: translate(1120px, 540px);
 }
@@ -329,8 +267,8 @@ a:focus-visible {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(90deg, #07080b99, transparent 48%),
-    linear-gradient(0deg, #07080b88, transparent 15%);
+    linear-gradient(90deg, #0009, transparent 48%),
+    linear-gradient(0deg, #0008, transparent 15%);
   pointer-events: none;
 }
 .pulse {
@@ -339,20 +277,7 @@ a:focus-visible {
   width: 500px;
   height: 500px;
 }
-@media (min-width: 1800px) {
-  .hero {
-    padding-top: 27svh;
-  }
-}
 @media (max-width: 700px) {
-  .hero {
-    padding: 155px 8% 0;
-  }
-  .hero h1 {
-    font-size: clamp(49px, 12.5vw, 76px);
-    line-height: 1.22;
-    letter-spacing: -1px;
-  }
   .star-position {
     transform: translate(865px, 795px);
   }
@@ -366,7 +291,7 @@ a:focus-visible {
     top: 80%;
   }
   .light-scene::after {
-    background: linear-gradient(180deg, #07080b33, transparent 40%, #07080b00 85%, #07080bbb);
+    background: linear-gradient(180deg, #0003, transparent 40%, #0000 85%, #000b);
   }
   .orbit,
   .flare {
@@ -380,18 +305,11 @@ a:focus-visible {
   }
 }
 @media (max-height: 700px) and (min-width: 701px) {
-  .hero {
-    padding-top: 145px;
-  }
-  .hero h1 {
-    font-size: 60px;
-  }
   .light-art {
     transform: none;
   }
 }
 
-/* A single editorial wordmark replaces the supporting copy. */
 .sr-only {
   position: absolute;
   width: 1px;
@@ -401,45 +319,78 @@ a:focus-visible {
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
 .hero {
-  padding-top: 34svh;
+  position: relative;
+  z-index: 1;
+  padding: 34svh 7% 24px;
+  pointer-events: none;
 }
-.hero .wordmark {
-  display: block;
+
+.wordmark {
   width: fit-content;
-  font-family: "Bodoni MT", Didot, "Times New Roman", serif;
-  font-size: clamp(100px, 12vw, 210px);
-  font-weight: 400;
-  line-height: 1.08;
-  letter-spacing: -0.065em;
-  padding: 0 0.09em 0.09em 0;
-  background: linear-gradient(125deg, #ffffff 8%, #e3dcee 55%, #a596b9 100%);
+  margin: 0;
+  padding: 0 0.08em 0 0;
+  font-family: "Instrument Sans", system-ui, sans-serif;
+  font-size: clamp(56px, 8.8vw, 148px);
+  font-weight: 500;
+  letter-spacing: -0.055em;
+  line-height: 1.04;
+  background: linear-gradient(122deg, #f7f5fa 10%, #eae4f0 62%, #bfafcf);
   background-clip: text;
   -webkit-background-clip: text;
   color: transparent;
 }
-.hero .wordmark span {
-  margin-left: 0;
-  font-style: italic;
-  font-weight: 400;
+
+.hero-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 clamp(16px, 2.5vw, 36px);
+  margin-top: clamp(8px, 1.8svh, 16px);
 }
-.hero .download {
-  margin-top: 35px;
+
+.hero-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: #bfbbcb;
+  font-size: 15px;
+  line-height: 1.2;
+  text-underline-offset: 6px;
+  text-decoration-thickness: 1px;
+  white-space: nowrap;
+  pointer-events: auto;
 }
-.footer {
-  justify-content: flex-end;
+
+.hero-links .download {
+  color: #eeeaf5;
+  text-decoration-line: underline;
+  text-decoration-color: #c5afd5a6;
 }
+
+.hero-links a:focus-visible {
+  outline-offset: 3px;
+}
+
+@media (hover: hover) {
+  .hero-links a:hover {
+    color: #fff;
+    text-decoration-line: underline;
+    text-decoration-color: currentColor;
+  }
+}
+
 @media (max-width: 700px) {
   .hero {
-    padding-top: 27svh;
+    padding: 27svh 8% 20px;
   }
-  .hero .wordmark {
-    font-size: clamp(66px, 20vw, 130px);
-  }
-  .hero .download {
-    margin-top: 27px;
+
+  .wordmark {
+    font-size: clamp(42px, 15.7vw, 86px);
   }
 }
+
 @media (max-height: 700px) and (min-width: 701px) {
   .hero {
     padding-top: 29svh;
