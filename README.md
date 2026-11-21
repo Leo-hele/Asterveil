@@ -49,6 +49,12 @@ npm run zip
 
 ## 自动检查与版本发布
 
+### 上传到 5308
+
+`npm run deploy` 构建两版 ZIP，上传到 SFTPGo `https://jx.7fa4.cn:5308/share/`，逐份回读校验 SHA-256，并把 `asterveil`、`asterveil-pro` 的构建信息写入同目录 `version.json`，保留其中其他产品的条目。凭据优先用 `--user` / `--password` 或 `SFTPGO_*` 环境变量，否则读取 `%APPDATA%\7fa4_terminal\config.json` 的 `sftp_user` / `sftp_password`。
+
+`npm run deploy -- --dry-run` 只构建并打印目标；`--no-build` 复用现有产物，`--no-version` 不更新清单，`--remote-dir` 可改远程目录。该渠道与 GitHub Releases 更新器独立，不改动更新器的签名清单。
+
 ### 本地自动更新
 
 Windows 10/11 x64 的 Chrome、Edge 可以配合[本地更新器](updater/README.md)从 GitHub Releases 静默更新普通版和 Pro。macOS Intel/Apple Silicon 与 Linux x64 提供实验构建，尚未实机验证。首次手动加载带更新功能的插件，打开 With updater 包中的安装入口，由简洁安装页自动识别浏览器、扩展 ID 和目录，确认安装，再在“关于”开启“自动更新”；也可手动“检查更新”。自动更新默认关闭，不安装更新器时仍可正常使用扩展。

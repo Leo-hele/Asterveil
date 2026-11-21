@@ -18,6 +18,7 @@
     "zip:light": "wxt zip --mode light",
     "zip:full": "wxt zip --mode full",
     "zip:all": "npm run zip:light && npm run zip:full",
+    "deploy": "node build/publish.mjs",
     "typecheck": "tsc --noEmit",
     "test": "node --test",
     "test:user-names:browser": "npm run build:all && node tests/user-names.browser.mjs",
