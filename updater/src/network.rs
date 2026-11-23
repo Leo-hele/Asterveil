@@ -3,6 +3,7 @@ use crate::{
     transaction::{Transaction, extract, remove_tree},
 };
 use anyhow::{Context, Result, bail, ensure};
+const LOCAL_BASE: &str = "http://localhost:9080";
 use reqwest::{
     Url,
     blocking::{Client, Response},
@@ -17,9 +18,10 @@ use std::{
 };
 
 fn allowed_url(url: &Url) -> bool {
-    url.scheme() == "https"
-        && url.username().is_empty()
-        && url.password().is_none()
+    if !url.username().is_empty() || url.password().is_some() {
+        return false;
+    }
+    if url.scheme() == "https"
         && url.port_or_known_default() == Some(443)
         && matches!(
             url.host_str(),
@@ -30,12 +32,17 @@ fn allowed_url(url: &Url) -> bool {
                     | "objects.githubusercontent.com"
             )
         )
+    {
+        return true;
+    }
+    url.scheme() == "http"
+        && url.port_or_known_default() == Some(9080)
+        && matches!(url.host_str(), Some("localhost" | "127.0.0.1"))
 }
 
-pub fn client() -> Result<Client> {
-    Ok(Client::builder()
+fn build_client(no_proxy: bool) -> Result<Client> {
+    let mut builder = Client::builder()
         .user_agent(concat!("Asterveil-Updater/", env!("CARGO_PKG_VERSION")))
-        .https_only(true)
         .connect_timeout(Duration::from_secs(10))
         .timeout(Duration::from_secs(600))
         .redirect(Policy::custom(|attempt| {
@@ -44,8 +51,19 @@ pub fn client() -> Result<Client> {
             } else {
                 attempt.follow()
             }
-        }))
-        .build()?)
+        }));
+    if no_proxy {
+        builder = builder.no_proxy();
+    }
+    Ok(builder.build()?)
+}
+
+pub fn client() -> Result<Client> {
+    build_client(false)
+}
+
+fn local_client() -> Result<Client> {
+    build_client(true)
 }
 
 fn response(client: &Client, url: &str, probe: bool) -> Result<Response> {
@@ -127,11 +145,41 @@ fn asset_url(release: &GithubRelease, name: &str) -> Result<String> {
     Ok(expected)
 }
 
+fn local_release(edition: &Edition, current: &str) -> Result<Option<(Release, Package, String)>> {
+    let client = local_client()?;
+    let bytes = small(
+        &client,
+        &format!("{LOCAL_BASE}/update-manifest.json"),
+        64 * 1024,
+    )?;
+    let signature = small(&client, &format!("{LOCAL_BASE}/update-manifest.sig"), 64)?;
+    let release = model::verify_release(&bytes, &signature, &model::public_key()?)?;
+    if model::version(&release.version)? <= model::version(current)? {
+        return Ok(None);
+    }
+    let package = release
+        .packages
+        .iter()
+        .find(|p| &p.edition == edition)
+        .context("本地更新清单缺少版本")?
+        .clone();
+    let url = format!("{LOCAL_BASE}/{}", package.name);
+    let mut probe = response(&client, &url, true)?;
+    let mut first = [0u8; 1];
+    probe.read_exact(&mut first).context("无法访问本地更新包")?;
+    Ok(Some((release, package, url)))
+}
+
 pub fn latest(
     client: &Client,
     edition: &Edition,
     current: &str,
 ) -> Result<Option<(Release, Package, String)>> {
+    // The local mirror is only trusted when it carries a valid signature. Any
+    // failure here (no proxy, missing files, bad signature) falls back to GitHub.
+    if let Ok(Some(local)) = local_release(edition, current) {
+        return Ok(Some(local));
+    }
     let github: GithubRelease = serde_json::from_slice(&small(
         client,
         &format!("https://api.github.com/repos/{REPOSITORY}/releases/latest"),
@@ -187,6 +235,11 @@ fn resolve_release(
 }
 
 pub fn download(client: &Client, url: &str, package: &Package, file: &mut File) -> Result<()> {
+    if url.starts_with(LOCAL_BASE) {
+        let local = local_client()?;
+        let response = response(&local, url, false)?;
+        return save_download(response, package, file);
+    }
     let response = response(client, url, false)?;
     save_download(response, package, file)
 }
@@ -299,6 +352,19 @@ mod tests {
         assert!(allowed_url(
             &Url::parse("https://release-assets.githubusercontent.com/a").unwrap()
         ));
+        assert!(allowed_url(
+            &Url::parse("http://localhost:9080/update-manifest.json").unwrap()
+        ));
+        assert!(allowed_url(
+            &Url::parse("http://127.0.0.1:9080/Asterveil-0.2.1-chrome.zip").unwrap()
+        ));
+        for s in [
+            "http://localhost:9081/a",
+            "http://example.com:9080/a",
+            "http://user@localhost:9080/a",
+        ] {
+            assert!(!allowed_url(&Url::parse(s).unwrap()));
+        }
     }
 
     #[test]

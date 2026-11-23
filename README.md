@@ -53,7 +53,7 @@ npm run zip
 
 `npm run deploy` 构建两版 ZIP，上传到 SFTPGo `https://jx.7fa4.cn:5308/share/`，逐份回读校验 SHA-256，并把 `asterveil`、`asterveil-pro` 的构建信息写入同目录 `version.json`，保留其中其他产品的条目。凭据优先用 `--user` / `--password` 或 `SFTPGO_*` 环境变量，否则读取 `%APPDATA%\7fa4_terminal\config.json` 的 `sftp_user` / `sftp_password`。
 
-`npm run deploy -- --dry-run` 只构建并打印目标；`--no-build` 复用现有产物，`--no-version` 不更新清单，`--remote-dir` 可改远程目录。该渠道与 GitHub Releases 更新器独立，不改动更新器的签名清单。
+`npm run deploy -- --dry-run` 只构建并打印目标；`--no-build` 复用现有产物，`--no-version` 不更新清单，`--remote-dir` 可改远程目录。若本机存在与仓库公钥匹配的签名私钥，发布时还会生成并上传 `update-manifest.json` / `update-manifest.sig`；本地更新器优先从 `http://localhost:9080` 读取这份签名清单，失败时回退 GitHub Releases。
 
 ### 本地自动更新
 

@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Asterveil · 7FA4 浏览器扩展</title>
+  <meta name="description" content="Asterveil 是面向 7FA4 的模块化浏览器扩展，提供页面美化、主题配色、Markdown 作答、Better Names、本地头像与外站提交器。">
+  <link rel="icon" href="../../icon.png">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #060912;
+      --panel: rgba(15, 21, 36, 0.78);
+      --panel-solid: #10182a;
+      --border: rgba(126, 155, 214, 0.18);
+      --text: #eaf0ff;
+      --muted: #9aa9c4;
+      --accent: #7aa8ff;
+      --accent-2: #b98cff;
+      --accent-soft: rgba(122, 168, 255, 0.12);
+      --good: #69d8b5;
+      --radius: 18px;
+      --shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(1100px 620px at 78% -10%, rgba(122, 168, 255, 0.16), transparent 60%),
+        radial-gradient(900px 560px at 8% 18%, rgba(185, 140, 255, 0.12), transparent 62%),
+        linear-gradient(180deg, #070b16 0%, var(--bg) 55%, #04060c 100%);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    #site-sky {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+    #site-sky canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+    #site-sky .starfield-backdrop {
+      inset: -48px;
+      width: calc(100% + 96px);
+      height: calc(100% + 96px);
+      animation: site-sky-drift 80s linear infinite alternate paused;
+      will-change: transform;
+    }
+    @keyframes site-sky-drift {
+      from { transform: translate3d(32px, -10px, 0); }
+      to { transform: translate3d(-32px, 10px, 0); }
+    }
+    main, footer { position: relative; z-index: 1; }
+
+    a { color: inherit; text-decoration: none; }
+
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 16px clamp(18px, 5vw, 64px);
+      background: rgba(6, 9, 18, 0.72);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(18px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    .brand-mark {
+      width: 32px;
+      height: 32px;
+      display: grid;
+      place-items: center;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      box-shadow: 0 0 22px rgba(122, 168, 255, 0.45);
+      animation: mark-pulse 4s ease-in-out infinite;
+    }
+
+    @keyframes mark-pulse {
+      50% { box-shadow: 0 0 34px rgba(185, 140, 255, 0.6); }
+    }
+
+    .nav-links { display: flex; flex-wrap: wrap; gap: 6px; }
+    .nav-links a {
+      padding: 8px 13px;
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 14px;
+      transition: color 0.2s, background 0.2s;
+    }
+    .nav-links a:hover,
+    .nav-links a:focus-visible { color: var(--text); background: var(--accent-soft); }
+
+    main { width: min(1160px, calc(100% - 36px)); margin: 0 auto; }
+
+    .hero {
+      position: relative;
+      padding: clamp(70px, 11vw, 140px) 0 70px;
+      text-align: center;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 15px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: rgba(14, 22, 40, 0.7);
+      color: var(--muted);
+      font-size: 13px;
+      letter-spacing: 0.08em;
+    }
+    .eyebrow i {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--good);
+      box-shadow: 0 0 12px var(--good);
+    }
+
+    h1 {
+      margin: 26px 0 18px;
+      font-size: clamp(46px, 8vw, 94px);
+      line-height: 1.02;
+      letter-spacing: -0.045em;
+      background: linear-gradient(100deg, #ffffff 10%, #9ec4ff 45%, #c7a0ff 75%, #ffffff 95%);
+      background-size: 220% auto;
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      animation: shine 9s linear infinite;
+    }
+
+    @keyframes shine { to { background-position: 220% center; } }
+
+    .hero p.lead {
+      max-width: 760px;
+      margin: 0 auto;
+      color: #c5d2ea;
+      font-size: clamp(15px, 2vw, 19px);
+      line-height: 1.85;
+    }
+
+    .hero-actions {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 14px;
+      margin-top: 36px;
+    }
+
+    .btn {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      min-height: 46px;
+      padding: 0 24px;
+      border-radius: 13px;
+      border: 1px solid var(--border);
+      background: rgba(18, 28, 49, 0.9);
+      color: var(--text);
+      font: inherit;
+      font-size: 15px;
+      cursor: pointer;
+      overflow: hidden;
+      transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+    }
+    .btn:hover { transform: translateY(-2px); border-color: var(--accent); box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35); }
+    .btn.primary {
+      border-color: transparent;
+      background: linear-gradient(120deg, #4f86ff, #9a6dff);
+      color: #fff;
+      box-shadow: 0 14px 38px rgba(84, 117, 255, 0.32);
+    }
+    .btn.primary::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.28), transparent 70%);
+      transform: translateX(-120%);
+      transition: transform 0.65s;
+    }
+    .btn.primary:hover::after { transform: translateX(120%); }
+    .btn:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+    .tabs { display: inline-flex; margin-top: 32px; padding: 5px; border: 1px solid var(--border); border-radius: 14px; background: rgba(10, 16, 29, 0.75); }
+    .tab { padding: 9px 20px; border: 0; border-radius: 10px; background: transparent; color: var(--muted); font: inherit; font-size: 14px; cursor: pointer; transition: background 0.2s, color 0.2s; }
+    .tab[aria-selected="true"] { background: var(--accent-soft); color: var(--text); box-shadow: inset 0 0 0 1px rgba(122, 168, 255, 0.35); }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin: 28px 0 90px;
+    }
+    .stat {
+      padding: 20px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--panel);
+      text-align: center;
+      backdrop-filter: blur(12px);
+    }
+    .stat strong { display: block; font-size: 26px; background: linear-gradient(120deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .stat span { color: var(--muted); font-size: 13px; }
+
+    section { padding: 62px 0; scroll-margin-top: 80px; }
+    .section-head { max-width: 720px; margin-bottom: 34px; }
+    .section-head h2 { margin: 0 0 12px; font-size: clamp(28px, 4vw, 42px); letter-spacing: -0.02em; }
+    .section-head p { margin: 0; color: var(--muted); line-height: 1.8; }
+
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    .card {
+      position: relative;
+      padding: 25px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--panel);
+      backdrop-filter: blur(14px);
+      overflow: hidden;
+      transition: transform 0.25s, border-color 0.25s, box-shadow 0.25s;
+    }
+    .card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(420px 160px at var(--x, 50%) 0%, var(--accent-soft), transparent 70%);
+      opacity: 0;
+      transition: opacity 0.25s;
+      pointer-events: none;
+    }
+    .card:hover { transform: translateY(-5px); border-color: rgba(122, 168, 255, 0.45); box-shadow: var(--shadow); }
+    .card:hover::before { opacity: 1; }
+    .card h3 { margin: 14px 0 8px; font-size: 18px; }
+    .card p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.75; }
+    .icon {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(122, 168, 255, 0.22), rgba(185, 140, 255, 0.16));
+      border: 1px solid rgba(122, 168, 255, 0.3);
+    }
+    .icon svg { width: 22px; height: 22px; stroke: #bcd4ff; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+    .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); }
+    table { width: 100%; border-collapse: collapse; min-width: 620px; }
+    th, td { padding: 15px 20px; text-align: left; border-bottom: 1px solid rgba(126, 155, 214, 0.12); font-size: 14px; }
+    th { color: var(--muted); font-weight: 600; background: rgba(8, 13, 24, 0.5); }
+    tr:last-child td { border-bottom: 0; }
+    td:first-child { color: #cbd7ee; width: 34%; }
+    td.current { background: rgba(122, 168, 255, 0.07); }
+    .yes { color: var(--good); }
+    .no { color: #6f7d94; }
+
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; counter-reset: step; }
+    .step { position: relative; padding: 28px 24px 24px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); }
+    .step::before {
+      counter-increment: step;
+      content: "0" counter(step);
+      position: absolute;
+      top: -16px;
+      left: 22px;
+      padding: 4px 12px;
+      border-radius: 999px;
+      background: linear-gradient(120deg, #4f86ff, #9a6dff);
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .step h3 { margin: 10px 0 8px; font-size: 17px; }
+    .step p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.75; }
+    code { font-family: ui-monospace, Consolas, "Courier New", monospace; font-size: 0.92em; color: #b9d2ff; }
+
+    details { border: 1px solid var(--border); border-radius: 14px; background: var(--panel); padding: 0 20px; margin-top: 12px; }
+    summary { padding: 17px 0; cursor: pointer; font-size: 15px; color: #dbe6ff; }
+    details p { margin: 0 0 18px; color: var(--muted); font-size: 14px; line-height: 1.85; }
+
+    .build {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 20px;
+      padding: 30px;
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      background: linear-gradient(140deg, rgba(20, 31, 55, 0.9), rgba(11, 17, 31, 0.92));
+      box-shadow: var(--shadow);
+    }
+    .build h3 { margin: 0 0 10px; font-size: 24px; }
+    .build p { color: var(--muted); line-height: 1.8; }
+    .build dl { display: grid; grid-template-columns: 90px 1fr; gap: 10px 16px; margin: 18px 0 0; font-size: 13px; }
+    .build dt { color: var(--muted); }
+    .build dd { margin: 0; word-break: break-all; color: #cfe0ff; }
+    .build .side { display: flex; flex-direction: column; justify-content: center; gap: 14px; }
+
+    footer { margin-top: 60px; padding: 40px 0 60px; border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; gap: 12px 26px; justify-content: space-between; }
+    footer a:hover { color: var(--text); }
+
+    .reveal { opacity: 0; transform: translateY(22px); transition: opacity 0.7s ease, transform 0.7s ease; }
+    .reveal.visible { opacity: 1; transform: none; }
+
+    @media (max-width: 900px) {
+      .grid, .steps { grid-template-columns: repeat(2, 1fr); }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .build { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 620px) {
+      .nav-links { display: none; }
+      .grid, .steps { grid-template-columns: 1fr; }
+      .hero { padding-top: 56px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+      .reveal { opacity: 1; transform: none; }
+    }
+  </style>
+</head>
+<body>
+  <div id="site-sky" aria-hidden="true"><canvas class="starfield"></canvas></div>
+
+  <header class="nav">
+    <a class="brand" href="../">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="19" height="19"><title>Asterveil</title><path fill="#fff" d="M12 2.5 14.3 9l6.7 3-6.7 3-2.3 6.5L9.7 15 3 12l6.7-3z"/></svg>
+      </span>
+      Asterveil
+    </a>
+    <nav class="nav-links" aria-label="页面导航">
+      <a href="#features">功能</a>
+      <a href="#editions">版本</a>
+      <a href="#install">安装</a>
+      <a href="#detail">细节</a>
+      <a href="#build">下载</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero reveal">
+      <span class="eyebrow"><i aria-hidden="true"></i>面向 7FA4 的浏览器扩展</span>
+      <h1 id="hero-title">Asterveil</h1>
+      <p class="lead" id="hero-desc">页面美化、主题配色、Markdown 作答、Better Names 与外站提交器。两个入口共用设置，本地离线也能工作。</p>
+      <div class="hero-actions">
+        <a class="btn primary" id="hero-download" href="../../Asterveil-0.2.1-chrome.zip" download>下载普通版</a>
+        <a class="btn" id="other-edition" href="../asterveil-pro/">查看 Pro 版</a>
+      </div>
+    </section>
+
+    <div class="stats reveal">
+      <div class="stat"><strong id="stat-version">0.2.1</strong><span>当前版本</span></div>
+      <div class="stat"><strong>7</strong><span>主题配色</span></div>
+      <div class="stat"><strong>2</strong><span>站点入口</span></div>
+      <div class="stat"><strong>120+</strong><span>Chrome / Edge</span></div>
+    </div>
+
+    <section id="features" class="reveal">
+      <div class="section-head">
+        <h2>一个扩展，覆盖整个 7FA4</h2>
+        <p>模块独立启停，关闭后恢复原站外观和交互。所有美化都在本地完成，不替换网站脚本。</p>
+      </div>
+      <div class="grid" id="feature-grid"></div>
+    </section>
+
+    <section id="editions" class="reveal">
+      <div class="section-head">
+        <h2>普通版与 Pro</h2>
+        <p>两者共享设置、草稿和模块边界；同一浏览器配置中同时启用时，普通版自动让位给 Pro。</p>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>能力</th><th>Asterveil</th><th>Asterveil Pro</th></tr></thead>
+          <tbody>
+            <tr><td>页面美化、主题与深浅色</td><td class="yes">支持</td><td class="yes">支持</td></tr>
+            <tr><td>Markdown / 公式预览、草稿、PNG 导出</td><td class="yes">支持</td><td class="yes">支持</td></tr>
+            <tr><td>Better Names、本地头像、计划日期条</td><td class="yes">支持</td><td class="yes">支持</td></tr>
+            <tr><td>外站提交器</td><td class="yes">支持</td><td class="yes">支持</td></tr>
+            <tr><td>PDF 导出与上传提交</td><td class="no">不包含</td><td class="yes">支持</td></tr>
+            <tr><td>加密 Better Names 数据源同步</td><td class="no">不包含</td><td class="yes">支持</td></tr>
+            <tr><td>本地更新器签名更新</td><td class="yes">可选安装</td><td class="yes">可选安装</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="install" class="reveal">
+      <div class="section-head">
+        <h2>三步安装</h2>
+        <p>这里提供的是仅插件包。带本地更新器的安装包从 GitHub Releases 获取。</p>
+      </div>
+      <div class="steps">
+        <article class="step"><h3>下载并解压</h3><p>选择普通版或 Pro 的 ZIP，解压到一个固定目录。后续更新会替换这个目录。</p></article>
+        <article class="step"><h3>加载扩展</h3><p>打开 <code>chrome://extensions</code> 或 <code>edge://extensions</code>，开启开发者模式，点击“加载已解压的扩展程序”并选择解压目录。</p></article>
+        <article class="step"><h3>刷新站点</h3><p>刷新 7FA4 页面后，右下角星芒按钮打开设置。两个入口共用同一份本地设置。</p></article>
+      </div>
+    </section>
+
+    <section id="detail" class="reveal">
+      <div class="section-head">
+        <h2>更多细节</h2>
+        <p>以下行为不会修改网站业务数据，只处理页面展示、本地草稿和用户主动触发的操作。</p>
+      </div>
+      <details><summary>编辑器与公式</summary><p>编辑器支持标题、表格、代码、任务列表，以及 <code>$…$</code>、<code>$$…$$</code>、<code>\(…\)</code>、<code>\[…\]</code> 和双反斜杠分隔符。按 <code>Ctrl+F</code> 查找、<code>Ctrl+H</code> 聚焦替换框，支持区分大小写、单次/全部替换与撤销。代码中的公式文本保持原样，Markdown 先经 DOMPurify 清理再用非信任模式渲染 KaTeX。</p></details>
+      <details><summary>图片、PDF 与提交</summary><p>普通版可导出白底 PNG；Pro 另可按 A4 分页导出 PDF，并把上传的 PDF 在本地逐页转成图片后预览提交。图片来源支持 HTTP/HTTPS、相对链接和内嵌图片；跨域受限时可授权后由扩展后台读取，单张最大 10 MB。最终通过原站 multipart 表单提交图片，保留题目参数与隐藏字段，不会直接向服务器发送 PDF。</p></details>
+      <details><summary>主题、背景与头像</summary><p>七项配色包含雾蓝、松绿、鸢紫、蔷薇、琥珀、岩灰与自定义。浅色会自动生成满足对比度的文字强调色；显示模式可选浅色、深色或跟随系统。自定义背景只作用于页面底层，导航、卡片和表格保留底色；图片仅在本地裁剪压缩，不会上传。头像替换用本地生成的 SVG 拦截 Gravatar 及镜像请求，七种样式按用户标识稳定生成。</p></details>
+      <details><summary>聊天、计划与提交器</summary><p><code>/chat</code> 由独立聊天器接管，会话与消息走站点官方接口，每 5 秒刷新当前会话，支持 Markdown 公式与群管理。计划页提供可拖动、可键盘微调的日期目录。工具栏提交器整合 7FA4 Submitter 0.1.13，覆盖洛谷、UOJ、QOJ、Codeforces、AtCoder、vjudge 等站点，发送时只读取当前标签页并向选定 7FA4 入口提交字段，不收集 Cookie。</p></details>
+      <details><summary>权限与数据边界</summary><p>正式包声明 <code>storage</code>、<code>activeTab</code>、<code>scripting</code>、<code>declarativeNetRequest</code>、<code>alarms</code>、<code>nativeMessaging</code> 及提交目标的精确主机权限。没有全站内容脚本、远程代码加载或 jQuery 注入。设置与草稿保存在浏览器本地，卸载扩展会一并删除。</p></details>
+    </section>
+
+    <section id="build" class="reveal">
+      <div class="build">
+        <div>
+          <h3>当前构建</h3>
+          <p id="build-hint">正在读取构建信息…</p>
+          <dl>
+            <dt>版本</dt><dd id="build-version">—</dd>
+            <dt>构建时间</dt><dd id="build-time">—</dd>
+            <dt>大小</dt><dd id="build-size">—</dd>
+            <dt>SHA-256</dt><dd id="build-sha">—</dd>
+          </dl>
+        </div>
+        <div class="side">
+          <a class="btn primary" id="build-download" href="../../Asterveil-0.2.1-chrome.zip" download>下载普通版</a>
+          <a class="btn" href="../">返回产品列表</a>
+          <a class="btn" href="https://github.com/Leo-hele/Asterveil">GitHub 仓库</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span>Asterveil · The next generation of Better Names.</span>
+    <span><a href="../">产品列表</a> · <a href="https://asterveil.yxyx.space/">项目网站</a> · <a href="https://github.com/Leo-hele/Asterveil">源码</a></span>
+  </footer>
+
+  <script type="module" src="../sky/starfield.js"></script>
+  <script>
+    (() => {
+      const features = [
+        ['页面美化', '首页、题目、评测、模测、计划、榜单与账户页面统一适配，保留原站节点和交互。', 'M4 4h16v16H4z M4 10h16 M10 10v10'],
+        ['主题配色', '七种预设与自定义色，浅色自动生成可读强调色；浅色、深色、跟随系统独立保存。', 'M12 3a9 9 0 1 0 0 18h2a2 2 0 0 0 0-4h-1a2 2 0 0 1 0-4h5a3 3 0 0 0 3-3 7 7 0 0 0-9-7z'],
+        ['首页布局', '板块显示、排序与左右栏移动在设置面板完成，隐藏板块不会删除原站内容。', 'M4 6h16 M4 12h16 M4 18h10'],
+        ['Markdown Editor', '公式预览、查找替换、按题目保存草稿、作业折叠与白底 PNG 导出。', 'M5 4h14v16H5z M8 9h8 M8 13h8 M8 17h5'],
+        ['公式排版', 'Marked + DOMPurify + KaTeX，行内与块级公式、表格和任务列表均可预览。', 'M4 17 9 7l5 10 M6 14h6'],
+        ['Pro 的 PDF', 'A4 分页导出，上传 PDF 本地转图后提交预览；限制 20 MB、20 页。', 'M7 3h7l4 4v14H7z M14 3v5h4'],
+        ['Better Names', '按用户 ID 显示姓名并按年级着色，支持官方、好友与自定义数据源。', 'M4 20V6l8-3 8 3v14 M9 20v-6h6v6'],
+        ['本地头像', '拦截 Gravatar 及镜像请求，用七种稳定生成的 SVG 头像替换。', 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M4 21c0-4 3.6-7 8-7s8 3 8 7'],
+        ['计划日期条', '固定定位、拖动和方向键微调，随原站加载的日期同步更新。', 'M7 3v3 M17 3v3 M4 9h16v12H4z M4 14h16'],
+        ['外站提交器', '解析多站题目与代码，通过 7FA4 代理发送，失败时不冒充已提交。', 'M12 16V4 M7 9l5-5 5 5 M5 18v3h14v-3'],
+        ['聊天器', '独立会话列表与消息视图，公式渲染、Token 用量、群管理与草稿保存。', 'M4 5h16v11H9l-5 4z M8 10h8'],
+        ['自动更新', '本地更新器校验 Ed25519 签名、大小和 SHA-256；启动与每六小时检查。', 'M12 3v12 M7 10l5 5 5-5 M5 20h14']
+      ];
+      const grid = document.getElementById('feature-grid');
+      for (const [title, text, path] of features) {
+        const card = document.createElement('article');
+        card.className = 'card';
+        card.innerHTML = '<div class="icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="' + path + '"/></svg></div><h3></h3><p></p>';
+        card.querySelector('h3').textContent = title;
+        card.querySelector('p').textContent = text;
+        grid.appendChild(card);
+      }
+
+      const editions = {
+        light: { key: 'asterveil', title: 'Asterveil', label: '下载普通版', desc: '页面美化、主题配色、Markdown 作答、Better Names 与外站提交器。两个入口共用设置，本地离线也能工作。' },
+        pro: { key: 'asterveil-pro', title: 'Asterveil Pro', label: '下载 Pro 版', desc: '包含普通版全部能力，并增加 Markdown Editor Pro 的 PDF 导出与上传提交、加密 Better Names 数据源。' }
+      };
+      const downloadButtons = [document.getElementById('hero-download'), document.getElementById('build-download')];
+      const other = document.getElementById('other-edition');
+      const current = location.pathname.includes('asterveil-pro') ? 'pro' : 'light';
+      const otherEdition = current === 'pro' ? 'light' : 'pro';
+      let registry = {};
+
+      other.href = otherEdition === 'pro' ? '../asterveil-pro/' : '../asterveil/';
+      other.textContent = otherEdition === 'pro' ? '查看 Pro 版' : '查看普通版';
+      const column = current === 'pro' ? 3 : 2;
+      for (const cell of document.querySelectorAll('#editions tbody td:nth-child(' + column + ')')) {
+        cell.classList.add('current');
+      }
+
+      function render() {
+        const edition = editions[current];
+        const info = registry[edition.key] || {};
+        document.title = (info.name || edition.title) + ' · 7FA4 浏览器扩展';
+        document.getElementById('hero-title').textContent = info.name || edition.title;
+        document.getElementById('hero-desc').textContent = info.description || edition.desc;
+        document.getElementById('stat-version').textContent = info.version || '0.2.1';
+        for (const button of downloadButtons) {
+          button.textContent = edition.label;
+          if (info.file) {
+            button.href = '../../' + info.file;
+            button.hidden = false;
+          } else {
+            button.hidden = true;
+          }
+        }
+        document.getElementById('build-version').textContent = info.version || '—';
+        document.getElementById('build-time').textContent = info.builtAt ? new Date(info.builtAt).toLocaleString('zh-CN', { hour12: false }) : '—';
+        document.getElementById('build-size').textContent = info.size ? (info.size / 1024 / 1024).toFixed(1) + ' MB' : '—';
+        document.getElementById('build-sha').textContent = info.sha256 || '—';
+        document.getElementById('build-hint').textContent = info.file
+          ? '文件已就绪，下载后按上方步骤加载即可。'
+          : '构建信息暂不可用，请稍后重试。';
+      }
+
+      fetch('../../version.json', { cache: 'no-store' })
+        .then((response) => { if (!response.ok) throw new Error(String(response.status)); return response.json(); })
+        .then((data) => { registry = data || {}; render(); })
+        .catch(() => { render(); });
+
+      const observer = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+            observer.unobserve(entry.target);
+          }
+        }
+      }, { threshold: 0.12 });
+      for (const section of document.querySelectorAll('.reveal')) observer.observe(section);
+
+      for (const card of document.querySelectorAll('.card')) {
+        card.addEventListener('pointermove', (event) => {
+          const rect = card.getBoundingClientRect();
+          card.style.setProperty('--x', Math.round((event.clientX - rect.left) / rect.width * 100) + '%');
+        });
+      }
+    })();
+  </script>
+</body>
+</html>
