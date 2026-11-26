@@ -12,30 +12,16 @@ use reqwest::{
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::{
+    collections::HashMap,
     fs::{self, File},
     io::{Read, Write},
     time::Duration,
 };
 
 fn allowed_url(url: &Url) -> bool {
-    if !url.username().is_empty() || url.password().is_some() {
-        return false;
-    }
-    if url.scheme() == "https"
-        && url.port_or_known_default() == Some(443)
-        && matches!(
-            url.host_str(),
-            Some(
-                "api.github.com"
-                    | "github.com"
-                    | "release-assets.githubusercontent.com"
-                    | "objects.githubusercontent.com"
-            )
-        )
-    {
-        return true;
-    }
     url.scheme() == "http"
+        && url.username().is_empty()
+        && url.password().is_none()
         && url.port_or_known_default() == Some(9080)
         && matches!(url.host_str(), Some("localhost" | "127.0.0.1"))
 }
@@ -77,161 +63,109 @@ fn response(client: &Client, url: &str, probe: bool) -> Result<Response> {
     let response = request.send().map_err(network_error)?;
     match response.status().as_u16() {
         200 | 206 => Ok(response),
-        403 | 429 => bail!("GitHub 请求受限，请稍后重试"),
-        404 => bail!("尚无可用的正式更新附件"),
-        _ => bail!("GitHub 下载服务暂不可用"),
+        403 | 429 => bail!("本地更新服务请求受限，请稍后重试"),
+        404 => bail!("尚无可用的更新附件"),
+        _ => bail!("本地更新服务暂不可用"),
     }
 }
 
 fn network_error(error: reqwest::Error) -> anyhow::Error {
     if error.is_timeout() {
-        anyhow::anyhow!("GitHub 请求超时，请稍后重试")
+        anyhow::anyhow!("本地更新服务请求超时")
     } else if error.is_connect() {
-        anyhow::anyhow!("无法连接 GitHub，请检查网络或系统代理")
+        anyhow::anyhow!("无法连接 localhost:9080，请确认挂载服务正在运行")
     } else {
-        anyhow::anyhow!("GitHub 请求失败，请检查网络")
+        anyhow::anyhow!("本地更新服务请求失败")
     }
 }
 
 fn small(client: &Client, url: &str, maximum: u64) -> Result<Vec<u8>> {
-    let mut request = client.get(url).timeout(Duration::from_secs(20));
+    let request = client.get(url).timeout(Duration::from_secs(20));
     ensure!(allowed_url(&Url::parse(url)?), "下载地址无效");
-    if url.starts_with("https://api.github.com/") {
-        request = request
-            .header("Accept", "application/vnd.github+json")
-            .header("X-GitHub-Api-Version", "2022-11-28");
-    }
     let response = request.send().map_err(network_error)?;
     match response.status().as_u16() {
-        403 | 429 => bail!("GitHub 请求受限，请稍后重试"),
-        404 => bail!("尚无可用的正式更新清单"),
+        403 | 429 => bail!("本地更新服务请求受限，请稍后重试"),
+        404 => bail!("尚无可用的更新清单"),
         200 => (),
-        _ => bail!("GitHub 发布服务暂不可用"),
+        _ => bail!("本地更新清单暂不可用"),
     }
     let mut bytes = Vec::new();
     response.take(maximum + 1).read_to_end(&mut bytes)?;
+    if bytes.starts_with(&[0xEF, 0xBB, 0xBF]) {
+        bytes.drain(..3);
+    }
     ensure!(bytes.len() as u64 <= maximum, "发布信息过大");
     Ok(bytes)
 }
 
 #[derive(Deserialize)]
-struct GithubRelease {
-    tag_name: String,
-    draft: bool,
-    prerelease: bool,
-    assets: Vec<Asset>,
-}
-#[derive(Deserialize)]
-struct Asset {
-    name: String,
-    browser_download_url: String,
+struct LocalProduct {
+    version: String,
+    file: String,
     size: u64,
+    sha256: String,
 }
 
-fn asset_url(release: &GithubRelease, name: &str) -> Result<String> {
-    let expected = format!(
-        "https://github.com/{REPOSITORY}/releases/download/{}/{name}",
-        release.tag_name
-    );
-    let matches = release
-        .assets
-        .iter()
-        .filter(|a| a.name == name && a.browser_download_url == expected)
-        .collect::<Vec<_>>();
-    ensure!(
-        matches.len() == 1 && matches[0].size > 0,
-        "发布缺少有效的更新附件"
-    );
-    Ok(expected)
+fn product_key(edition: &Edition) -> &'static str {
+    match edition {
+        Edition::Light => "asterveil",
+        Edition::Full => "asterveil-pro",
+    }
 }
 
 fn local_release(edition: &Edition, current: &str) -> Result<Option<(Release, Package, String)>> {
     let client = local_client()?;
-    let bytes = small(
-        &client,
-        &format!("{LOCAL_BASE}/update-manifest.json"),
-        64 * 1024,
-    )?;
-    let signature = small(&client, &format!("{LOCAL_BASE}/update-manifest.sig"), 64)?;
-    let release = model::verify_release(&bytes, &signature, &model::public_key()?)?;
-    if model::version(&release.version)? <= model::version(current)? {
+    let bytes = small(&client, &format!("{LOCAL_BASE}/version.json"), 1024 * 1024)?;
+    let products: HashMap<String, LocalProduct> =
+        serde_json::from_slice(&bytes).context("本地版本清单无效")?;
+    let product = products
+        .get(product_key(edition))
+        .context("本地版本清单缺少当前版本")?;
+    let available = model::version(&product.version)?;
+    if available <= model::version(current)? {
         return Ok(None);
     }
-    let package = release
-        .packages
-        .iter()
-        .find(|p| &p.edition == edition)
-        .context("本地更新清单缺少版本")?
-        .clone();
+    ensure!(
+        !product.file.is_empty()
+            && !product.file.contains('/')
+            && !product.file.contains('\\')
+            && !product.file.starts_with('.'),
+        "更新附件名无效"
+    );
+    ensure!(
+        product.size > 0 && product.size <= model::MAX_ARCHIVE,
+        "更新附件大小无效"
+    );
+    ensure!(
+        product.sha256.len() == 64 && hex::decode(&product.sha256).is_ok(),
+        "更新校验值无效"
+    );
+    let package = Package {
+        edition: edition.clone(),
+        name: product.file.clone(),
+        size: product.size,
+        sha256: product.sha256.clone(),
+    };
     let url = format!("{LOCAL_BASE}/{}", package.name);
     let mut probe = response(&client, &url, true)?;
     let mut first = [0u8; 1];
     probe.read_exact(&mut first).context("无法访问本地更新包")?;
+    let release = Release {
+        schema: 1,
+        repository: REPOSITORY.to_string(),
+        version: product.version.clone(),
+        min_updater: env!("CARGO_PKG_VERSION").to_string(),
+        packages: vec![package.clone()],
+    };
     Ok(Some((release, package, url)))
 }
 
 pub fn latest(
-    client: &Client,
+    _client: &Client,
     edition: &Edition,
     current: &str,
 ) -> Result<Option<(Release, Package, String)>> {
-    // The local mirror is only trusted when it carries a valid signature. Any
-    // failure here (no proxy, missing files, bad signature) falls back to GitHub.
-    if let Ok(Some(local)) = local_release(edition, current) {
-        return Ok(Some(local));
-    }
-    let github: GithubRelease = serde_json::from_slice(&small(
-        client,
-        &format!("https://api.github.com/repos/{REPOSITORY}/releases/latest"),
-        2 * 1024 * 1024,
-    )?)?;
-    resolve_release(client, edition, current, github)
-}
-
-fn resolve_release(
-    client: &Client,
-    edition: &Edition,
-    current: &str,
-    github: GithubRelease,
-) -> Result<Option<(Release, Package, String)>> {
-    ensure!(!github.draft && !github.prerelease, "忽略非正式版本");
-    let available = model::version(github.tag_name.strip_prefix('v').context("发布标签无效")?)?;
-    // Old releases may predate signed updates. Only inspect attachments when an
-    // upgrade exists; every upgrade still requires a signature and a CDN probe.
-    if available <= model::version(current)? {
-        return Ok(None);
-    }
-    let bytes = small(
-        client,
-        &asset_url(&github, "update-manifest.json")?,
-        64 * 1024,
-    )?;
-    let signature = small(client, &asset_url(&github, "update-manifest.sig")?, 64)?;
-    let release = model::verify_release(&bytes, &signature, &model::public_key()?)?;
-    ensure!(
-        github.tag_name == format!("v{}", release.version),
-        "发布标签与签名版本不一致"
-    );
-    let package = release
-        .packages
-        .iter()
-        .find(|p| &p.edition == edition)
-        .context("版本附件缺失")?
-        .clone();
-    let url = asset_url(&github, &package.name)?;
-    ensure!(
-        github
-            .assets
-            .iter()
-            .any(|a| a.name == package.name && a.size == package.size),
-        "发布附件长度不匹配"
-    );
-    let mut probe = response(client, &url, true)?;
-    let mut first = [0u8; 1];
-    probe
-        .read_exact(&mut first)
-        .context("无法访问 GitHub 附件下载服务器")?;
-    Ok(Some((release, package, url)))
+    local_release(edition, current)
 }
 
 pub fn download(client: &Client, url: &str, package: &Package, file: &mut File) -> Result<()> {
@@ -313,55 +247,19 @@ pub fn prepare(tx: &Transaction) -> Result<serde_json::Value> {
 mod tests {
     use super::*;
     #[test]
-    fn old_or_equal_releases_need_no_update_assets_but_newer_ones_do() {
-        let http = client().unwrap();
-        for tag in ["v0.1.1", "v0.1.2"] {
-            let github = GithubRelease {
-                tag_name: tag.into(),
-                draft: false,
-                prerelease: false,
-                assets: vec![],
-            };
-            assert!(
-                resolve_release(&http, &Edition::Full, "0.1.2", github)
-                    .unwrap()
-                    .is_none()
-            );
-        }
-        for tag in ["v0.1.3", "v0.1.10", "invalid"] {
-            let github = GithubRelease {
-                tag_name: tag.into(),
-                draft: false,
-                prerelease: false,
-                assets: vec![],
-            };
-            assert!(resolve_release(&http, &Edition::Full, "0.1.2", github).is_err());
-        }
-    }
-    #[test]
-    fn limits_release_hosts_and_credentials() {
+    fn only_local_mirror_urls_are_allowed() {
         for s in [
-            "http://github.com/x",
-            "https://github.com.evil.test/x",
-            "https://user@github.com/x",
-            "https://github.com:444/x",
-            "https://127.0.0.1/x",
+            "http://localhost:9080/version.json",
+            "http://127.0.0.1:9080/Asterveil-0.2.1-chrome.zip",
         ] {
-            assert!(!allowed_url(&Url::parse(s).unwrap()));
+            assert!(allowed_url(&Url::parse(s).unwrap()));
         }
-        assert!(allowed_url(
-            &Url::parse("https://release-assets.githubusercontent.com/a").unwrap()
-        ));
-        assert!(allowed_url(
-            &Url::parse("http://localhost:9080/update-manifest.json").unwrap()
-        ));
-        assert!(allowed_url(
-            &Url::parse("http://127.0.0.1:9080/Asterveil-0.2.1-chrome.zip").unwrap()
-        ));
         for s in [
+            "https://localhost:9080/a",
             "http://localhost:9081/a",
             "http://example.com:9080/a",
             "http://user@localhost:9080/a",
+            "https://github.com/a",
         ] {
             assert!(!allowed_url(&Url::parse(s).unwrap()));
         }

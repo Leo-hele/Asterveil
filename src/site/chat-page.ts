@@ -17,9 +17,9 @@ import {
   mergeMessages,
   parseMessageBody,
 } from '../features/chat/model';
-import { realNames } from '../features/real-names/users';
 import { renderMarkdown } from '../features/homework/markdown';
 import markdownCss from '../features/homework/markdown.css?inline';
+import { realNames } from '../features/real-names/users';
 import css from './chat-app.css?inline';
 
 const refreshInterval = 5_000;
@@ -86,8 +86,14 @@ function nearBottom(container: HTMLElement): boolean {
 }
 
 export function mountChatPage(scope: Scope): void {
-  const original = document.querySelector<HTMLElement>('#chat-app');
-  if (!original || scope.signal.aborted) return;
+  const original = ['#chat-app', '.chat-app', '[data-chat-app]', 'chat-app']
+    .map((selector) => document.querySelector<HTMLElement>(selector))
+    .find((element): element is HTMLElement => element !== null);
+  if (scope.signal.aborted) return;
+  if (!original) {
+    console.warn('Asterveil: 未找到聊天器挂载点，/chat 页面结构可能已更改。');
+    return;
+  }
 
   const api: ChatApi = createChatApi();
   const state: ChatState = {
@@ -224,14 +230,16 @@ export function mountChatPage(scope: Scope): void {
   function messageRow(message: ChatMessage): HTMLElement {
     if (message.body.kind === 'pat') {
       const event = element('div', 'message event');
-      event.append(element('span', 'event-text', `${senderName(message)} 拍了拍${patTarget(message)}`));
+      event.append(
+        element('span', 'event-text', `${senderName(message)} 拍了拍${patTarget(message)}`),
+      );
       return event;
     }
     const row = element('div', `message${message.isSelf ? ' self' : ''}`);
     const avatar = element(
       'span',
       'avatar',
-      message.isSelf ? '我' : (senderName(message).charAt(0) || '?'),
+      message.isSelf ? '我' : senderName(message).charAt(0) || '?',
     );
     const main = element('div', 'message-main');
     const meta = element('div', 'message-meta');
@@ -242,7 +250,11 @@ export function mountChatPage(scope: Scope): void {
     if (message.body.kind === 'vote') {
       const card = element('div', 'vote');
       card.append(
-        element('div', 'vote-head', message.body.pollId ? `投票 · #${message.body.pollId}` : '投票'),
+        element(
+          'div',
+          'vote-head',
+          message.body.pollId ? `投票 · #${message.body.pollId}` : '投票',
+        ),
       );
       if (message.body.text) {
         const paper = element('article', 'paper chat-paper');
@@ -333,28 +345,26 @@ export function mountChatPage(scope: Scope): void {
       const avatar = element(
         'span',
         `avatar${conversation.type === 'group' ? ' group' : ''}`,
-        conversation.type === 'group' ? '群' : (conversation.name.charAt(0) || '?'),
+        conversation.type === 'group' ? '群' : conversation.name.charAt(0) || '?',
       );
       const body = element('span', 'conversation-body');
       const top = element('span', 'conversation-top');
       top.append(element('strong', undefined, conversation.name));
-      top.append(
-        element('span', 'kind', conversation.type === 'group' ? '群聊' : '私聊'),
-      );
+      top.append(element('span', 'kind', conversation.type === 'group' ? '群聊' : '私聊'));
       const latest = state.messages.get(conversation.key)?.at(-1);
       const preview = element(
         'span',
         'conversation-preview',
-        latest
-          ? `${latest.isSelf ? '我: ' : ''}${messageSummary(latest)}`
-          : conversation.subtitle,
+        latest ? `${latest.isSelf ? '我: ' : ''}${messageSummary(latest)}` : conversation.subtitle,
       );
       body.append(top, preview);
       item.append(avatar, body);
       conversationsEl.append(item);
     }
     emptyEl.hidden = list.length > 0;
-    emptyEl.textContent = state.conversations.length ? '没有匹配的会话' : '暂无会话，请检查登录状态后刷新';
+    emptyEl.textContent = state.conversations.length
+      ? '没有匹配的会话'
+      : '暂无会话，请检查登录状态后刷新';
   }
 
   function renderHeader(): void {
@@ -369,8 +379,7 @@ export function mountChatPage(scope: Scope): void {
     }
     titleEl.textContent = conversation.name;
     const type = conversation.type === 'group' ? '群聊' : '私聊';
-    const recover =
-      state.limits.recover !== null ? ` · Token ${state.limits.recover}s 恢复` : '';
+    const recover = state.limits.recover !== null ? ` · Token ${state.limits.recover}s 恢复` : '';
     metaEl.textContent = `${type} · ID ${conversation.id}${recover}`;
     if (conversation.type !== 'group') {
       state.groupPanel = false;
@@ -390,7 +399,11 @@ export function mountChatPage(scope: Scope): void {
     return 2;
   }
 
-  function actionButton(label: string, handler: () => void, className = 'ghost small'): HTMLButtonElement {
+  function actionButton(
+    label: string,
+    handler: () => void,
+    className = 'ghost small',
+  ): HTMLButtonElement {
     const button = element('button', className, label);
     button.type = 'button';
     button.addEventListener('click', handler);
@@ -482,7 +495,9 @@ export function mountChatPage(scope: Scope): void {
       }),
     );
     if (isOwner) {
-      groupActionsEl.append(actionButton('解散群', () => void disbandGroup(), 'ghost small danger'));
+      groupActionsEl.append(
+        actionButton('解散群', () => void disbandGroup(), 'ghost small danger'),
+      );
     }
   }
 
@@ -607,7 +622,9 @@ export function mountChatPage(scope: Scope): void {
     void loadActive({ bottom: true });
   }
 
-  async function loadActive(options: { silent?: boolean; before?: number; bottom?: boolean } = {}): Promise<void> {
+  async function loadActive(
+    options: { silent?: boolean; before?: number; bottom?: boolean } = {},
+  ): Promise<void> {
     const conversation = current();
     if (!conversation || state.loading) return;
     state.loading = true;
@@ -628,7 +645,10 @@ export function mountChatPage(scope: Scope): void {
         setStatus(fetched.length ? `已更新 ${fetched.length} 条消息` : '暂无新消息', 'success');
       }
       if (key === state.activeKey && changed) {
-        renderMessages({ bottom: options.bottom === true, preserveScroll: options.before !== undefined });
+        renderMessages({
+          bottom: options.bottom === true,
+          preserveScroll: options.before !== undefined,
+        });
         renderConversations();
       }
     } catch (error) {
@@ -675,7 +695,9 @@ export function mountChatPage(scope: Scope): void {
       const result = await api.send(conversation, state.selfId, content);
       if (disposed) return;
       state.token = { ...state.token, ...result.token };
-      const remaining = (state.messages.get(key) ?? []).filter((message) => message.localId !== localId);
+      const remaining = (state.messages.get(key) ?? []).filter(
+        (message) => message.localId !== localId,
+      );
       state.messages.set(key, mergeMessages(remaining, result.messages));
       setStatus('已发送', 'success');
       renderMessages({ bottom: true });
@@ -744,7 +766,9 @@ export function mountChatPage(scope: Scope): void {
       state.limits = snapshot.limits;
       state.token = { ...snapshot.token };
       state.conversations = withRealNames(snapshot.conversations);
-      state.byKey = new Map(state.conversations.map((conversation) => [conversation.key, conversation]));
+      state.byKey = new Map(
+        state.conversations.map((conversation) => [conversation.key, conversation]),
+      );
       loadDrafts();
       if (!state.byKey.has(state.activeKey)) {
         state.activeKey = state.conversations[0]?.key ?? '';
@@ -752,7 +776,9 @@ export function mountChatPage(scope: Scope): void {
       }
       renderAll({ bottom: true });
       setStatus(
-        state.conversations.length ? `已同步 ${state.conversations.length} 个会话` : '没有可用的会话',
+        state.conversations.length
+          ? `已同步 ${state.conversations.length} 个会话`
+          : '没有可用的会话',
         state.conversations.length ? 'success' : 'error',
       );
       if (state.activeKey) await loadActive({ silent: true, bottom: true });

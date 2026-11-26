@@ -275,57 +275,6 @@ function build() {
   }
 }
 
-function signUpdateManifest(version) {
-  const env = { ...process.env };
-  const fallback =
-    process.platform === 'win32'
-      ? join(env.LOCALAPPDATA || '', 'AsterveilReleaseKeys', 'update-ed25519.private.pem')
-      : '';
-  const key = env.ASTERVEIL_UPDATE_PRIVATE_KEY_FILE || fallback;
-  if (!env.ASTERVEIL_UPDATE_PRIVATE_KEY && !(key && existsSync(key))) {
-    return;
-  }
-  env.ASTERVEIL_UPDATE_PRIVATE_KEY_FILE = key;
-  const result = spawnSync(
-    process.execPath,
-    [join(ROOT, 'updater', 'scripts', 'release.mjs'), 'sign', join(ROOT, '.output')],
-    { cwd: ROOT, env, encoding: 'utf8' },
-  );
-  if (result.status !== 0) {
-    console.warn(
-      `[更新] 签名清单生成失败，跳过：${(result.stderr || result.stdout).trim().split('\n').pop()}`,
-    );
-  } else {
-    console.log(`[更新] 已生成 ${version} 的签名更新清单`);
-  }
-}
-
-function findUpdateManifests(version, products) {
-  const files = ['update-manifest.json', 'update-manifest.sig'].map((name) =>
-    join(ROOT, '.output', name),
-  );
-  if (!files.every((file) => existsSync(file))) {
-    return [];
-  }
-  try {
-    const manifest = JSON.parse(readFileSync(files[0], 'utf8'));
-    if (manifest.version !== version) {
-      console.warn(`[更新] 现有签名清单版本 ${manifest.version} 与 ${version} 不一致，跳过`);
-      return [];
-    }
-    for (const item of products) {
-      const entry = manifest.packages?.find((p) => p.name === item.name);
-      if (!entry || entry.size !== item.bytes.length || entry.sha256 !== item.sha256) {
-        console.warn(`[更新] 现有签名清单与 ${item.name} 不匹配，跳过`);
-        return [];
-      }
-    }
-  } catch {
-    return [];
-  }
-  return files;
-}
-
 function usage() {
   console.log(`用法: npm run deploy -- [选项]
 
@@ -379,9 +328,6 @@ export async function main(argv = process.argv.slice(2)) {
     console.log(`[dry-run] ${host}:${port}  ${dir}`);
     for (const item of products) {
       console.log(`  ${item.name}  ${item.bytes.length} B  sha256 ${item.sha256.slice(0, 16)}…`);
-    }
-    for (const file of findUpdateManifests(version, products)) {
-      console.log(`  ${basename(file)}  签名更新清单`);
     }
     if (existsSync(PRODUCT_PAGE)) {
       for (const asset of SKY_ASSETS) {
@@ -452,16 +398,6 @@ export async function main(argv = process.argv.slice(2)) {
       }
       console.log(`[介绍页] ${client.webUrl(remote)}`);
     }
-  }
-  signUpdateManifest(version);
-  for (const file of findUpdateManifests(version, products)) {
-    const remote = posix.join(dir, basename(file));
-    const bytes = readFileSync(file);
-    await client.upload(remote, bytes);
-    if (!(await client.download(remote)).equals(bytes)) {
-      throw new Error(`校验失败：${remote} 的远端内容与本地不一致`);
-    }
-    console.log(`[更新] ${client.webUrl(remote)}`);
   }
   if (!args.no_version) {
     const remote = posix.join(dir, versionFile);

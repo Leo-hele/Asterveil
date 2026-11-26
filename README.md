@@ -53,13 +53,13 @@ npm run zip
 
 `npm run deploy` 构建两版 ZIP，上传到 SFTPGo `https://jx.7fa4.cn:5308/share/`，逐份回读校验 SHA-256，并把 `asterveil`、`asterveil-pro` 的构建信息写入同目录 `version.json`，保留其中其他产品的条目。凭据优先用 `--user` / `--password` 或 `SFTPGO_*` 环境变量，否则读取 `%APPDATA%\7fa4_terminal\config.json` 的 `sftp_user` / `sftp_password`。
 
-`npm run deploy -- --dry-run` 只构建并打印目标；`--no-build` 复用现有产物，`--no-version` 不更新清单，`--remote-dir` 可改远程目录。若本机存在与仓库公钥匹配的签名私钥，发布时还会生成并上传 `update-manifest.json` / `update-manifest.sig`；本地更新器优先从 `http://localhost:9080` 读取这份签名清单，失败时回退 GitHub Releases。
+`npm run deploy -- --dry-run` 只构建并打印目标；`--no-build` 复用现有产物，`--no-version` 不更新清单，`--remote-dir` 可改远程目录。发布脚本只上传两版 ZIP、产品页和 `version.json`；本地更新器只从 `http://localhost:9080` 读取 `version.json`。
 
 ### 本地自动更新
 
-Windows 10/11 x64 的 Chrome、Edge 可以配合[本地更新器](updater/README.md)从 GitHub Releases 静默更新普通版和 Pro。macOS Intel/Apple Silicon 与 Linux x64 提供实验构建，尚未实机验证。首次手动加载带更新功能的插件，打开 With updater 包中的安装入口，由简洁安装页自动识别浏览器、扩展 ID 和目录，确认安装，再在“关于”开启“自动更新”；也可手动“检查更新”。自动更新默认关闭，不安装更新器时仍可正常使用扩展。
+Windows 10/11 x64 的 Chrome、Edge 可以配合[本地更新器](updater/README.md)从 `http://localhost:9080`（5308 的 `/share` 挂载）静默更新普通版和 Pro。macOS Intel/Apple Silicon 与 Linux x64 提供实验构建，尚未实机验证。首次手动加载带更新功能的插件，打开 With updater 包中的安装入口，由简洁安装页自动识别浏览器、扩展 ID 和目录，确认安装，再在“关于”开启“自动更新”；也可手动“检查更新”。自动更新默认关闭，不安装更新器时仍可正常使用扩展。
 
-更新器按需启动，先验证 GitHub 接口和实际下载链路；只接收经过 Ed25519 签名、大小及 SHA-256 校验的正式新版，等待编辑、导出、提交及草稿保存完成后替换并重载插件。失败保留或恢复旧版，不强制刷新网页。首版更新器自身需手动升级。安装、恢复、代理说明和发布密钥配置见更新器文档。
+更新器按需启动，只读取 `http://localhost:9080/version.json`，核对新版本的文件名、大小和 SHA-256 后下载对应 ZIP；等待编辑、导出、提交及草稿保存完成后替换并重载插件。失败保留或恢复旧版，不强制刷新网页。首版更新器自身需手动升级。安装、恢复、代理说明和发布密钥配置见更新器文档。
 
 发布前必须配置 Actions secret `ASTERVEIL_UPDATE_PRIVATE_KEY`，与仓库内更新器公钥匹配；未配置时签名步骤失败，不创建未签名更新。Windows CI 编译、测试和打包更新器；macOS/Linux Actions 仅编译打包，不运行平台测试；Release 将更新器分别与普通版、Pro 组成 With updater 包，同时保留两个仅插件包，并附带签名清单及签名文件。
 
